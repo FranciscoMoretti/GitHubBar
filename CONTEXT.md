@@ -12,6 +12,14 @@ _Avoid_: CodexBar plugin, CodexBar feature
 The single authenticated GitHub account whose accessible repositories supply GitHubBar's pull-request workload. Organization and repository filters may mute parts of that workload.
 _Avoid_: User, identity, profile
 
+**Account connection**:
+The authenticated relationship through which GitHubBar observes the monitored account's accessible pull-request workload. Its credential health and its access coverage are independent.
+_Avoid_: Login, token, authentication
+
+**Access coverage**:
+The organizations and repositories visible to GitHubBar through the account connection. Successful authentication does not guarantee complete access coverage.
+_Avoid_: Permissions, login status, refresh health
+
 **Review request**:
 An open pull request on which the monitored account or one of its teams currently has an explicit GitHub review request. Mere mentions, subscriptions, assignments, and past participation do not qualify.
 _Avoid_: Notification, incoming PR, unread PR
