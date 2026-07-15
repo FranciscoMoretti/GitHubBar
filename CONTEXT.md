@@ -29,7 +29,7 @@ An open pull request on which the monitored account or one of its teams currentl
 _Avoid_: Notification, incoming PR, unread PR
 
 **Authored pull request**:
-An open pull request authored by the monitored account. Non-drafts and drafts appear in separate lists.
+An open pull request authored by the monitored account. Ready and draft pull requests share the My PRs list.
 _Avoid_: Outgoing PR
 
 **Waiting for my review**:
@@ -37,23 +37,23 @@ The list of open, non-draft pull requests with a current direct or team review r
 _Avoid_: Review inbox, unread reviews
 
 **My PRs**:
-The list of open, non-draft authored pull requests, without inferred workflow or readiness classification.
+The list of all open authored pull requests, ordered by recent activity. Draft status is shown on the pull request itself rather than creating another list.
 _Avoid_: Ready PRs, submitted PRs
 
-**Drafts**:
-The list of open authored pull requests that are currently drafts, shown separately below My PRs.
-_Avoid_: Work in progress
+**Draft pull request**:
+An authored pull request whose current GitHub state is draft. It remains a normal member of My PRs with a draft status marker.
+_Avoid_: Drafts list, work in progress
 
 **Review roster**:
-The people and teams requested to review a pull request, plus people who have already submitted a review. It exists to make reviewer coverage visible, not to classify the pull request's workflow.
+The people and teams requested to review a pull request, plus people who have already submitted a review. An empty roster stays empty rather than becoming a separate warning or workflow state.
 _Avoid_: Reviewer list, assignees, participants
 
 **Active workload**:
-The pull requests in Waiting for my review, My PRs, and Drafts, potentially spanning hundreds of pull requests under a target throughput of 100 pull requests per day.
+The pull requests in Waiting for my review and My PRs, potentially spanning hundreds of pull requests under a target throughput of 100 pull requests per day.
 _Avoid_: Inbox, feed, history
 
 **Reconciliation**:
-A complete network refresh that rediscovers Waiting for my review, My PRs, and Drafts and hydrates their row and review-roster data.
+A complete network refresh that rediscovers Waiting for my review and My PRs and hydrates their row and review-roster data.
 _Avoid_: Sync, poll, incremental update
 
 **Snapshot**:
