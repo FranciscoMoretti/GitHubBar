@@ -121,8 +121,8 @@ struct PopoverView: View {
         if appModel.state.isRefreshing { return "Refreshing…" }
         guard let lastUpdatedAt = appModel.state.lastUpdatedAt else { return "Ready" }
         switch appModel.state.refreshHealth {
-        case .cached, .partial, .failed, .rateLimited:
-            return "Cached \(lastUpdatedAt.formatted(.relative(presentation: .named)))"
+        case .restoredSnapshot, .partial, .failed, .rateLimited:
+            return "Snapshot \(lastUpdatedAt.formatted(.relative(presentation: .named)))"
         case .idle, .fresh:
             return "Updated \(lastUpdatedAt.formatted(.relative(presentation: .named)))"
         }
@@ -196,10 +196,10 @@ private struct RefreshHealthBanner: View {
             }
 
             switch state.refreshHealth {
-            case .cached:
+            case .restoredSnapshot:
                 icon = "clock.arrow.circlepath"
-                title = "Showing saved data"
-                detail = "GitHubBar will refresh this list in the background."
+                title = "Showing saved Snapshot"
+                detail = "GitHubBar will reconcile this list in the background."
                 tint = .secondary
                 showsProgress = false
                 offersRetry = false

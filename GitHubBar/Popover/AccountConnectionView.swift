@@ -25,7 +25,7 @@ struct AccountConnectionView: View {
                 .padding(.bottom, 13)
             Text("Checking GitHub CLI")
                 .connectionTitle()
-            Text("GitHubBar is looking for authenticated GitHub.com accounts on this Mac.")
+            Text("GitHubBar is looking for connected GitHub.com accounts on this Mac.")
                 .connectionDetail()
         case let .connectionRequired(problem):
             requiredContent(problem)
@@ -34,7 +34,7 @@ struct AccountConnectionView: View {
                 .connectionIcon()
             Text("Choose the account to monitor")
                 .connectionTitle()
-            Text("GitHubBar found multiple authenticated GitHub.com accounts. Choose one for this Mac.")
+            Text("GitHubBar found multiple connected GitHub.com accounts. Choose one for this Mac.")
                 .connectionDetail()
             VStack(spacing: 6) {
                 ForEach(candidates) { candidate in
@@ -97,7 +97,7 @@ struct AccountConnectionView: View {
         }
 
         HStack(spacing: 7) {
-            if problem == .cliMissing || problem == .authenticationRequired {
+            if problem == .cliMissing || problem == .connectionRequired {
                 Button("Setup guide") { openSetupGuide(problem) }
             }
             Button("Check again") { send(.recheckAccountConnection) }
@@ -110,7 +110,7 @@ struct AccountConnectionView: View {
     private func requiredTitle(_ problem: AccountConnectionProblem) -> String {
         switch problem {
         case .cliMissing: "Install GitHub CLI"
-        case .authenticationRequired: "Sign in with GitHub CLI"
+        case .connectionRequired: "Connect GitHub CLI"
         case .incompleteAccess: "Review GitHub access"
         case .unavailable: "GitHub CLI could not be verified"
         }
@@ -120,8 +120,8 @@ struct AccountConnectionView: View {
         switch problem {
         case .cliMissing:
             "GitHubBar uses an existing GitHub CLI session, but gh was not found on this Mac."
-        case .authenticationRequired:
-            "GitHub CLI is installed, but no usable GitHub.com account is authenticated."
+        case .connectionRequired:
+            "GitHub CLI is installed, but no usable GitHub.com account connection is available."
         case .incompleteAccess:
             "The account connection does not currently cover all repositories needed by GitHubBar."
         case .unavailable:
@@ -132,7 +132,7 @@ struct AccountConnectionView: View {
     private func recoveryCommand(_ problem: AccountConnectionProblem) -> String? {
         switch problem {
         case .cliMissing: "brew install gh"
-        case .authenticationRequired: "gh auth login --hostname github.com"
+        case .connectionRequired: "gh auth login --hostname github.com"
         case .incompleteAccess, .unavailable: nil
         }
     }

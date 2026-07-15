@@ -3,13 +3,16 @@ import Foundation
 public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
     private let transport: any GitHubTransport
     private let hydrationBatchSize: Int
+    private let hydrationConcurrency: Int
 
     public init(
         transport: any GitHubTransport = URLSessionGitHubTransport(),
-        hydrationBatchSize: Int = 20
+        hydrationBatchSize: Int = 20,
+        hydrationConcurrency: Int = 4
     ) {
         self.transport = transport
         self.hydrationBatchSize = max(1, hydrationBatchSize)
+        self.hydrationConcurrency = max(1, hydrationConcurrency)
     }
 
     public func reconcile(
@@ -91,19 +94,12 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         let authoredDiscoveryIDs = Set(authoredIDs)
         let allIDs = Array(reviewDiscoveryIDs.union(authoredDiscoveryIDs)).sorted()
 
-        var hydratedRecords: [HydratedRecord] = []
-        for batch in allIDs.chunked(into: hydrationBatchSize) {
-            do {
-                let output = try await hydrate(ids: batch, account: account)
-                hydratedRecords.append(contentsOf: output.value)
-                metadata.merge(output.metadata)
-            } catch {
-                metadata.record(error: error, warning: "pull-request hydration incomplete")
-            }
-        }
+        let hydrationOutput = await hydrateAll(ids: allIDs, account: account)
+        let hydratedRecords = hydrationOutput.value
+        metadata.merge(hydrationOutput.metadata)
 
         if !allIDs.isEmpty, hydratedRecords.isEmpty {
-            return .failed(failure(for: nil, fallback: .hydration), metadata.presentation)
+            return .failed(metadata.blockingFailure ?? .hydration, metadata.presentation)
         }
 
         let monitoredReviewerKeys = Set(
@@ -115,7 +111,7 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
             guard let record = recordsByID[id],
                   !record.isDraft,
                   !record.requestedReviewerKeys.isDisjoint(with: monitoredReviewerKeys),
-                  isIncluded(record.repositoryID, in: repositoryScope) else {
+                  repositoryScope.includes(repositoryID: record.repositoryID) else {
                 return nil
             }
             return record.presentation
@@ -128,7 +124,7 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         let authoredPullRequests = authoredDiscoveryIDs.compactMap { id -> PullRequestPresentation? in
             guard let record = recordsByID[id],
                   record.authorLogin.caseInsensitiveCompare(account.login) == .orderedSame,
-                  isIncluded(record.repositoryID, in: repositoryScope) else {
+                  repositoryScope.includes(repositoryID: record.repositoryID) else {
                 return nil
             }
             return record.presentation
@@ -162,23 +158,29 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         var cursor: String?
 
         repeat {
-            let page: Executed<ViewerRepositoriesData> = try await execute(
-                operationName: "ViewerRepositories",
-                query: Self.viewerRepositoriesQuery,
-                variables: CursorVariables(cursor: cursor),
-                account: account
-            )
-            repositories.append(contentsOf: page.data.viewer.repositories.nodes.map {
-                RepositoryChoice(id: $0.id, nameWithOwner: $0.nameWithOwner)
-            })
-            metadata.record(
-                rateLimit: page.data.rateLimit,
-                hasErrors: page.hasErrors,
-                warning: "repository catalog incomplete"
-            )
-            cursor = page.data.viewer.repositories.pageInfo.hasNextPage
-                ? page.data.viewer.repositories.pageInfo.endCursor
-                : nil
+            do {
+                let page: Executed<ViewerRepositoriesData> = try await execute(
+                    operationName: "ViewerRepositories",
+                    query: Self.viewerRepositoriesQuery,
+                    variables: CursorVariables(cursor: cursor),
+                    account: account
+                )
+                repositories.append(contentsOf: page.data.viewer.repositories.nodes.map {
+                    RepositoryChoice(id: $0.id, nameWithOwner: $0.nameWithOwner)
+                })
+                metadata.record(
+                    rateLimit: page.data.rateLimit,
+                    hasErrors: page.hasErrors,
+                    warning: "repository catalog incomplete"
+                )
+                cursor = page.data.viewer.repositories.pageInfo.hasNextPage
+                    ? page.data.viewer.repositories.pageInfo.endCursor
+                    : nil
+            } catch {
+                if repositories.isEmpty || isAccessBlocking(error) { throw error }
+                metadata.record(error: error, warning: "repository catalog page incomplete")
+                cursor = nil
+            }
         } while cursor != nil
 
         let uniqueRepositories = Dictionary(uniqueKeysWithValues: repositories.map { ($0.id, $0) })
@@ -193,49 +195,61 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         var cursor: String?
 
         repeat {
-            let page: Executed<ViewerOrganizationsData> = try await execute(
-                operationName: "ViewerOrganizations",
-                query: Self.viewerOrganizationsQuery,
-                variables: CursorVariables(cursor: cursor),
-                account: account
-            )
-            organizations.append(contentsOf: page.data.viewer.organizations.nodes.map(\.login))
-            metadata.record(rateLimit: page.data.rateLimit, hasErrors: page.hasErrors, warning: "organization discovery incomplete")
-            cursor = page.data.viewer.organizations.pageInfo.hasNextPage
-                ? page.data.viewer.organizations.pageInfo.endCursor
-                : nil
+            do {
+                let page: Executed<ViewerOrganizationsData> = try await execute(
+                    operationName: "ViewerOrganizations",
+                    query: Self.viewerOrganizationsQuery,
+                    variables: CursorVariables(cursor: cursor),
+                    account: account
+                )
+                organizations.append(contentsOf: page.data.viewer.organizations.nodes.map(\.login))
+                metadata.record(rateLimit: page.data.rateLimit, hasErrors: page.hasErrors, warning: "organization discovery incomplete")
+                cursor = page.data.viewer.organizations.pageInfo.hasNextPage
+                    ? page.data.viewer.organizations.pageInfo.endCursor
+                    : nil
+            } catch {
+                if organizations.isEmpty || isAccessBlocking(error) { throw error }
+                metadata.record(error: error, warning: "organization discovery page incomplete")
+                cursor = nil
+            }
         } while cursor != nil
 
         var teams: [TeamReference] = []
         for organization in organizations {
             var teamCursor: String?
             repeat {
-                let page: Executed<OrganizationTeamsData> = try await execute(
-                    operationName: "OrganizationTeams",
-                    query: Self.organizationTeamsQuery,
-                    variables: TeamVariables(
-                        organization: organization,
-                        userLogin: account.login,
-                        cursor: teamCursor
-                    ),
-                    account: account
-                )
-                guard let organizationData = page.data.organization else {
-                    metadata.warnings.append("organization team discovery incomplete")
-                    break
-                }
-                teams.append(contentsOf: organizationData.teams.nodes.map {
-                    TeamReference(
-                        organizationLogin: $0.organization.login,
-                        slug: $0.slug,
-                        name: $0.name,
-                        avatarURL: $0.avatarURL.flatMap(URL.init(string:))
+                do {
+                    let page: Executed<OrganizationTeamsData> = try await execute(
+                        operationName: "OrganizationTeams",
+                        query: Self.organizationTeamsQuery,
+                        variables: TeamVariables(
+                            organization: organization,
+                            userLogin: account.login,
+                            cursor: teamCursor
+                        ),
+                        account: account
                     )
-                })
-                metadata.record(rateLimit: page.data.rateLimit, hasErrors: page.hasErrors, warning: "organization team discovery incomplete")
-                teamCursor = organizationData.teams.pageInfo.hasNextPage
-                    ? organizationData.teams.pageInfo.endCursor
-                    : nil
+                    guard let organizationData = page.data.organization else {
+                        metadata.warnings.append("organization team discovery incomplete")
+                        break
+                    }
+                    teams.append(contentsOf: organizationData.teams.nodes.map {
+                        TeamReference(
+                            organizationLogin: $0.organization.login,
+                            slug: $0.slug,
+                            name: $0.name,
+                            avatarURL: $0.avatarURL.flatMap(URL.init(string:))
+                        )
+                    })
+                    metadata.record(rateLimit: page.data.rateLimit, hasErrors: page.hasErrors, warning: "organization team discovery incomplete")
+                    teamCursor = organizationData.teams.pageInfo.hasNextPage
+                        ? organizationData.teams.pageInfo.endCursor
+                        : nil
+                } catch {
+                    if isAccessBlocking(error) { throw error }
+                    metadata.record(error: error, warning: "organization team discovery incomplete")
+                    teamCursor = nil
+                }
             } while teamCursor != nil
         }
 
@@ -252,11 +266,18 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
     ) async throws -> OperationOutput<[String]> {
         var metadata = MetadataAccumulator()
         var ids: [String] = []
-        for qualifier in repositoryQualifiers {
+        for (index, qualifier) in repositoryQualifiers.enumerated() {
             let query = qualifier.isEmpty ? baseQuery : "\(baseQuery) \(qualifier)"
-            let output = try await searchPullRequestIDs(query: query, account: account)
-            ids.append(contentsOf: output.value)
-            metadata.merge(output.metadata)
+            do {
+                let output = try await searchPullRequestIDs(query: query, account: account)
+                ids.append(contentsOf: output.value)
+                metadata.merge(output.metadata)
+            } catch {
+                if isAccessBlocking(error) || (index == 0 && repositoryQualifiers.count == 1) {
+                    throw error
+                }
+                metadata.record(error: error, warning: "pull-request search shard incomplete")
+            }
         }
         return OperationOutput(value: Array(Set(ids)), metadata: metadata)
     }
@@ -270,15 +291,21 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         var cursor: String?
 
         repeat {
-            let page: Executed<SearchPullRequestsData> = try await execute(
-                operationName: "SearchPullRequests",
-                query: Self.searchPullRequestsQuery,
-                variables: SearchVariables(query: searchQuery, cursor: cursor),
-                account: account
-            )
-            ids.append(contentsOf: page.data.search.nodes.compactMap(\.id))
-            metadata.record(rateLimit: page.data.rateLimit, hasErrors: page.hasErrors, warning: "pull-request search incomplete")
-            cursor = page.data.search.pageInfo.hasNextPage ? page.data.search.pageInfo.endCursor : nil
+            do {
+                let page: Executed<SearchPullRequestsData> = try await execute(
+                    operationName: "SearchPullRequests",
+                    query: Self.searchPullRequestsQuery,
+                    variables: SearchVariables(query: searchQuery, cursor: cursor),
+                    account: account
+                )
+                ids.append(contentsOf: page.data.search.nodes.compactMap(\.id))
+                metadata.record(rateLimit: page.data.rateLimit, hasErrors: page.hasErrors, warning: "pull-request search incomplete")
+                cursor = page.data.search.pageInfo.hasNextPage ? page.data.search.pageInfo.endCursor : nil
+            } catch {
+                if ids.isEmpty || isAccessBlocking(error) { throw error }
+                metadata.record(error: error, warning: "pull-request search page incomplete")
+                cursor = nil
+            }
         } while cursor != nil
 
         return OperationOutput(value: Array(Set(ids)), metadata: metadata)
@@ -342,6 +369,62 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         )
     }
 
+    private func hydrateAll(
+        ids: [String],
+        account: ResolvedAccount
+    ) async -> OperationOutput<[HydratedRecord]> {
+        let batches = ids.chunked(into: hydrationBatchSize)
+        guard !batches.isEmpty else { return OperationOutput(value: [], metadata: MetadataAccumulator()) }
+
+        return await withTaskGroup(of: HydrationBatchOutcome.self) { group in
+            var nextBatchIndex = 0
+            var recordsByBatch: [Int: [HydratedRecord]] = [:]
+            var metadataByBatch: [Int: MetadataAccumulator] = [:]
+
+            func submitBatch(at index: Int) {
+                let batch = batches[index]
+                group.addTask {
+                    do {
+                        return .success(index: index, output: try await hydrate(ids: batch, account: account))
+                    } catch {
+                        return .failure(index: index, error: CapturedOperationError(error))
+                    }
+                }
+            }
+
+            while nextBatchIndex < min(hydrationConcurrency, batches.count) {
+                submitBatch(at: nextBatchIndex)
+                nextBatchIndex += 1
+            }
+
+            while let outcome = await group.next() {
+                switch outcome {
+                case let .success(index, output):
+                    recordsByBatch[index] = output.value
+                    metadataByBatch[index] = output.metadata
+                case let .failure(index, error):
+                    var failedMetadata = MetadataAccumulator()
+                    failedMetadata.record(error: error, warning: "pull-request hydration incomplete")
+                    metadataByBatch[index] = failedMetadata
+                }
+
+                if nextBatchIndex < batches.count {
+                    submitBatch(at: nextBatchIndex)
+                    nextBatchIndex += 1
+                }
+            }
+
+            var metadata = MetadataAccumulator()
+            for index in batches.indices {
+                if let batchMetadata = metadataByBatch[index] { metadata.merge(batchMetadata) }
+            }
+            return OperationOutput(
+                value: batches.indices.flatMap { recordsByBatch[$0] ?? [] },
+                metadata: metadata
+            )
+        }
+    }
+
     private func execute<Variables: Encodable & Sendable, Response: Decodable & Sendable>(
         operationName: String,
         query: String,
@@ -359,11 +442,18 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         return Executed(data: data, hasErrors: !(envelope.errors ?? []).isEmpty)
     }
 
-    private func isIncluded(_ repositoryID: String, in scope: RepositoryScope) -> Bool {
-        switch scope {
-        case .all: true
-        case let .selected(repositoryIDs): repositoryIDs.contains(repositoryID)
+    private func isAccessBlocking(_ error: Error) -> Bool {
+        let transportError: GitHubTransportError?
+        if let direct = error as? GitHubTransportError {
+            transportError = direct
+        } else if let captured = error as? CapturedOperationError {
+            transportError = captured.transportError
+        } else {
+            transportError = nil
         }
+        guard let transportError else { return false }
+        return failure(for: transportError, fallback: .discovery) == .rateLimited
+            || failure(for: transportError, fallback: .discovery) == .organizationAuthorizationRequired
     }
 
     private func makeRepositoryQualifiers(
@@ -401,8 +491,20 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
 
     private func failure(for error: Error?, fallback: WorkloadFailure) -> WorkloadFailure {
         guard let error else { return fallback }
-        if case let GitHubTransportError.http(statusCode, _, _) = error, statusCode == 403 || statusCode == 429 {
-            return .rateLimited
+        if case let GitHubTransportError.http(
+            statusCode,
+            retryAfter,
+            rateLimitResetAt,
+            remainingRequests,
+            organizationAuthorizationRequired
+        ) = error {
+            if organizationAuthorizationRequired {
+                return .organizationAuthorizationRequired
+            }
+            if statusCode == 429
+                || (statusCode == 403 && (remainingRequests == 0 || retryAfter != nil || rateLimitResetAt != nil)) {
+                return .rateLimited
+            }
         }
         return fallback
     }
@@ -561,20 +663,38 @@ private enum GraphQLClientError: Error {
     case missingData
 }
 
-private struct OperationOutput<Value> {
+private struct OperationOutput<Value: Sendable>: Sendable {
     let value: Value
     let metadata: MetadataAccumulator
 }
 
-private struct MetadataAccumulator {
+private struct MetadataAccumulator: Sendable {
     var queryCost = 0
     var remainingPoints: Int?
     var resetAt: Date?
     var warnings: [String] = []
+    var blockingFailure: WorkloadFailure?
 
     mutating func record(error: Error, warning: String? = nil) {
         if let warning { warnings.append(warning) }
-        guard case let GitHubTransportError.http(_, retryAfter, rateLimitResetAt) = error else { return }
+        let transportError: GitHubTransportError?
+        if let direct = error as? GitHubTransportError {
+            transportError = direct
+        } else if let captured = error as? CapturedOperationError {
+            transportError = captured.transportError
+        } else {
+            transportError = nil
+        }
+        guard let transportError,
+              case let GitHubTransportError.http(_, retryAfter, rateLimitResetAt, _, _) = transportError else { return }
+        if case let .http(_, _, _, _, organizationAuthorizationRequired) = transportError,
+           organizationAuthorizationRequired {
+            blockingFailure = .organizationAuthorizationRequired
+        } else if case let .http(statusCode, retryAfter, resetAt, remainingRequests, _) = transportError,
+                  statusCode == 429
+                    || (statusCode == 403 && (remainingRequests == 0 || retryAfter != nil || resetAt != nil)) {
+            blockingFailure = .rateLimited
+        }
         let retryAt = retryAfter.map { Date().addingTimeInterval($0) }
         if let candidate = rateLimitResetAt ?? retryAt {
             resetAt = max(resetAt ?? .distantPast, candidate)
@@ -593,6 +713,9 @@ private struct MetadataAccumulator {
         if let remaining = other.remainingPoints { remainingPoints = remaining }
         if let reset = other.resetAt { resetAt = reset }
         warnings.append(contentsOf: other.warnings)
+        if blockingFailure != .organizationAuthorizationRequired {
+            blockingFailure = other.blockingFailure ?? blockingFailure
+        }
     }
 
     var presentation: ReconciliationMetadata {
@@ -600,9 +723,23 @@ private struct MetadataAccumulator {
             queryCost: queryCost,
             remainingPoints: remainingPoints,
             resetAt: resetAt,
-            warnings: warnings
+            warnings: warnings,
+            rateLimitEncountered: blockingFailure == .rateLimited
         )
     }
+}
+
+private struct CapturedOperationError: Error, Sendable {
+    let transportError: GitHubTransportError?
+
+    init(_ error: Error) {
+        transportError = error as? GitHubTransportError
+    }
+}
+
+private enum HydrationBatchOutcome: Sendable {
+    case success(index: Int, output: OperationOutput<[HydratedRecord]>)
+    case failure(index: Int, error: CapturedOperationError)
 }
 
 private struct CursorVariables: Encodable, Sendable {

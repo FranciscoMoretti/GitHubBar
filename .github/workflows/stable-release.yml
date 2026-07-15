@@ -75,7 +75,7 @@ jobs:
 
       - name: Resolve Sparkle and import its signing key
         env:
-          SPARKLE_ACCOUNT: com.franciscomoretti.GitHubBar
+          SPARKLE_ACCOUNT: com.franciscomoretti.githubbar
         shell: bash
         run: |
           set -euo pipefail

@@ -10,6 +10,15 @@ public enum RepositoryScope: Codable, Equatable, Sendable {
         case let .selected(repositoryIDs): repositoryIDs
         }
     }
+
+    public func includes(repositoryID: String) -> Bool {
+        switch self {
+        case .all:
+            true
+        case let .selected(repositoryIDs):
+            repositoryIDs.contains(repositoryID)
+        }
+    }
 }
 
 public struct RepositoryChoice: Codable, Equatable, Identifiable, Sendable {

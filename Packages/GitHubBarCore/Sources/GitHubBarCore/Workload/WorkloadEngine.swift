@@ -107,6 +107,16 @@ public actor WorkloadEngine {
             guard state.repositoryScope != scope else { return }
             invalidatePublication(clearPresentation: false)
             state.repositoryScope = scope
+            if let projectedSnapshot = currentSnapshot?.projected(to: scope) {
+                apply(projectedSnapshot)
+            } else {
+                state.waitingForReview = state.waitingForReview.filter { pullRequest in
+                    scope.includes(repositoryID: pullRequest.repositoryID)
+                }
+                state.authoredPullRequests = state.authoredPullRequests.filter { pullRequest in
+                    scope.includes(repositoryID: pullRequest.repositoryID)
+                }
+            }
             var currentSettings = await currentSettings()
             currentSettings.repositoryScope = scope
             settings = currentSettings
@@ -165,8 +175,8 @@ public actor WorkloadEngine {
         switch result {
         case .cliMissing:
             state.accountConnection = .connectionRequired(.cliMissing)
-        case .authenticationRequired:
-            state.accountConnection = .connectionRequired(.authenticationRequired)
+        case .connectionRequired:
+            state.accountConnection = .connectionRequired(.connectionRequired)
         case let .selectionRequired(candidates):
             state.accountConnection = .selectionRequired(candidates)
         case let .connected(account):
@@ -250,12 +260,18 @@ public actor WorkloadEngine {
         case let .partial(snapshot, metadata):
             rateLimitRetryTask?.cancel()
             rateLimitRetryTask = nil
-            rateLimitAttempt = 0
             let merged = snapshot.mergingConfirmedUpdates(into: previousSnapshot)
             apply(merged)
-            state.refreshHealth = .partial(
-                message: metadata.warnings.first ?? "Some pull-request data could not be refreshed."
-            )
+            if metadata.rateLimitEncountered {
+                rateLimitAttempt += 1
+                scheduleRateLimitRetry(after: metadata, generation: reconciliationGeneration)
+                state.refreshHealth = .partial(message: "GitHub rate limiting left some pull-request data unchanged.")
+            } else {
+                rateLimitAttempt = 0
+                state.refreshHealth = .partial(
+                    message: metadata.warnings.first ?? "Some pull-request data could not be refreshed."
+                )
+            }
             diagnostic = ReconciliationDiagnostic(
                 trigger: trigger,
                 duration: duration,
@@ -270,6 +286,18 @@ public actor WorkloadEngine {
                 state.refreshHealth = .rateLimited(until: metadata.resetAt)
                 rateLimitAttempt += 1
                 scheduleRateLimitRetry(after: metadata, generation: reconciliationGeneration)
+            } else if failure == .organizationAuthorizationRequired {
+                rateLimitAttempt = 0
+                state.accountConnection = .connected(
+                    login: account.login,
+                    accessCoverage: AccessCoverage(
+                        isComplete: false,
+                        summary: "Organization SSO authorization is required for one or more repositories."
+                    )
+                )
+                state.refreshHealth = .failed(
+                    message: "Authorize GitHub CLI for the affected organization, then check again."
+                )
             } else {
                 rateLimitAttempt = 0
                 state.refreshHealth = .failed(message: "GitHub could not refresh the active workload.")
@@ -429,7 +457,7 @@ public actor WorkloadEngine {
             return
         }
         apply(snapshot)
-        state.refreshHealth = .cached
+        state.refreshHealth = .restoredSnapshot
         publish()
     }
 

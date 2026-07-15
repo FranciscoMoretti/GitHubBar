@@ -27,14 +27,14 @@ public struct GitHubCLIAccountConnection: AccountConnection {
         )
         guard status.exitCode == 0,
               let response = try? JSONDecoder().decode(AuthStatusResponse.self, from: Data(status.standardOutput.utf8)) else {
-            return status.exitCode == 0 ? .failed(.invalidStatusResponse) : .authenticationRequired
+            return status.exitCode == 0 ? .failed(.invalidStatusResponse) : .connectionRequired
         }
 
         let usableAccounts = response.hosts[Self.hostname, default: []]
             .filter { $0.state == "success" }
 
         guard !usableAccounts.isEmpty else {
-            return .authenticationRequired
+            return .connectionRequired
         }
 
         let candidates = usableAccounts.map {

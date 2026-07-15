@@ -9,6 +9,7 @@ enum ReconciliationChecks {
         failures.append(contentsOf: await checkFailureRetention())
         failures.append(contentsOf: await checkAccountRace())
         failures.append(contentsOf: await checkRateLimitRetryBound())
+        failures.append(contentsOf: await checkPartialRateLimitRetry())
         failures.append(contentsOf: await checkSchedulingTransitions())
         failures.append(contentsOf: await checkLaunchAtLoginMapping())
         failures.append(contentsOf: await checkPopoverOpenRefresh())
@@ -92,6 +93,32 @@ enum ReconciliationChecks {
         check(await client.requestCount == 3, "Rate limits retry within a bounded attempt budget", failures: &failures)
         check(state.authoredPullRequests.map(\.id) == ["RECOVERED"], "A bounded rate-limit retry can recover", failures: &failures)
         check(await clock.sleepCount == 2, "Rate-limit retry waits through the injected Clock", failures: &failures)
+        return failures
+    }
+
+    private static func checkPartialRateLimitRetry() async -> [String] {
+        let clock = ImmediateRefreshClock()
+        let client = ScriptedWorkloadClient(results: [
+            .partial(
+                snapshot(ids: ["CONFIRMED"], completeness: .partial),
+                ReconciliationMetadata(
+                    queryCost: 2,
+                    remainingPoints: 0,
+                    resetAt: nil,
+                    warnings: ["pull-request hydration incomplete"],
+                    rateLimitEncountered: true
+                )
+            ),
+            .complete(snapshot(ids: ["RECOVERED"]), .empty),
+        ])
+        let engine = makeEngine(client: client, clock: clock)
+        await engine.send(.launch)
+        for _ in 0..<20 where await client.requestCount < 2 { await Task.yield() }
+        let state = await latestState(from: engine)
+
+        var failures: [String] = []
+        check(await client.requestCount == 2, "A partial rate limit schedules bounded backoff", failures: &failures)
+        check(state.authoredPullRequests.map(\.id) == ["RECOVERED"], "A partial rate-limit retry can recover", failures: &failures)
         return failures
     }
 

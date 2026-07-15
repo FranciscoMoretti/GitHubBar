@@ -38,7 +38,7 @@ targets:
         product: Sparkle
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.franciscomoretti.GitHubBar
+        PRODUCT_BUNDLE_IDENTIFIER: com.franciscomoretti.githubbar
         PRODUCT_NAME: GitHubBar
         INFOPLIST_FILE: GitHubBar/Resources/Info.plist
         GENERATE_INFOPLIST_FILE: NO
@@ -63,7 +63,7 @@ targets:
       - target: GitHubBar
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.franciscomoretti.GitHubBarTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.franciscomoretti.githubbar.tests
 
 schemes:
   GitHubBar:

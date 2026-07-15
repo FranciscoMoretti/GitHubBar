@@ -49,7 +49,7 @@ public struct NoopReconciliationDiagnostics: ReconciliationDiagnostics {
 }
 
 public struct OSLogReconciliationDiagnostics: ReconciliationDiagnostics {
-    private let logger = Logger(subsystem: "com.franciscomoretti.GitHubBar", category: "reconciliation")
+    private let logger = Logger(subsystem: "com.franciscomoretti.githubbar", category: "reconciliation")
 
     public init() {}
 

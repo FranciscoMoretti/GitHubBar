@@ -3,6 +3,19 @@ import XCTest
 @testable import GitHubBarCore
 
 final class SnapshotStoreTests: XCTestCase {
+    func testRejectsSnapshotWithUnsupportedSchemaVersion() async throws {
+        let store = InMemorySnapshotStore(
+            snapshot: fixtureSnapshot(schemaVersion: 2)
+        )
+
+        do {
+            _ = try await store.load(hostname: "github.com", accountLogin: "FranciscoMoretti")
+            XCTFail("Expected incompatible Snapshot version")
+        } catch SnapshotStoreError.incompatibleVersion {
+            // Expected.
+        }
+    }
+
     func testSnapshotRoundTripIsOwnerOnlyAndAccountBound() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("githubbar-snapshot-test-\(UUID().uuidString)", isDirectory: true)
@@ -43,8 +56,9 @@ final class SnapshotStoreTests: XCTestCase {
         }
     }
 
-    private func fixtureSnapshot() -> WorkloadSnapshot {
+    private func fixtureSnapshot(schemaVersion: Int = 1) -> WorkloadSnapshot {
         WorkloadSnapshot(
+            schemaVersion: schemaVersion,
             hostname: "github.com",
             accountLogin: "FranciscoMoretti",
             capturedAt: Date(timeIntervalSince1970: 1_700_000_000),

@@ -319,7 +319,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.franciscomoretti.GitHubBarTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.franciscomoretti.githubbar.tests;
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GitHubBar.app/Contents/MacOS/GitHubBar";
 			};
@@ -401,7 +401,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.franciscomoretti.GitHubBar;
+				PRODUCT_BUNDLE_IDENTIFIER = com.franciscomoretti.githubbar;
 				PRODUCT_NAME = GitHubBar;
 				SDKROOT = macosx;
 			};
@@ -426,7 +426,7 @@
 				);
 				MARKETING_VERSION = 0.1.0;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
-				PRODUCT_BUNDLE_IDENTIFIER = com.franciscomoretti.GitHubBar;
+				PRODUCT_BUNDLE_IDENTIFIER = com.franciscomoretti.githubbar;
 				PRODUCT_NAME = GitHubBar;
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) GITHUBBAR_STABLE";
@@ -508,7 +508,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.franciscomoretti.GitHubBarTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.franciscomoretti.githubbar.tests;
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GitHubBar.app/Contents/MacOS/GitHubBar";
 			};
@@ -582,7 +582,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.franciscomoretti.GitHubBarTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.franciscomoretti.githubbar.tests;
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GitHubBar.app/Contents/MacOS/GitHubBar";
 			};
@@ -606,7 +606,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.franciscomoretti.GitHubBar;
+				PRODUCT_BUNDLE_IDENTIFIER = com.franciscomoretti.githubbar;
 				PRODUCT_NAME = GitHubBar;
 				SDKROOT = macosx;
 			};

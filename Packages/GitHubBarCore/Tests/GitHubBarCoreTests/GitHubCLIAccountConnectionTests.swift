@@ -46,6 +46,34 @@ final class GitHubCLIAccountConnectionTests: XCTestCase {
             return XCTFail("Expected missing CLI result")
         }
     }
+
+    func testNoUsableAccountRequiresConnection() async {
+        let connection = GitHubCLIAccountConnection(
+            executableLocator: TestExecutableLocator(url: URL(fileURLWithPath: "/test/gh")),
+            commandRunner: TestAccountCommandRunner(accountState: "failure")
+        )
+
+        let result = await connection.inspect(selectedLogin: nil)
+
+        guard case .connectionRequired = result else {
+            return XCTFail("Expected account connection requirement")
+        }
+    }
+
+    func testMissingRequiredScopeReportsIncompleteAccessCoverage() async {
+        let connection = GitHubCLIAccountConnection(
+            executableLocator: TestExecutableLocator(url: URL(fileURLWithPath: "/test/gh")),
+            commandRunner: TestAccountCommandRunner(scopes: "repo")
+        )
+
+        let result = await connection.inspect(selectedLogin: "francisco-acme")
+
+        guard case let .connected(account) = result else {
+            return XCTFail("Expected connected account with incomplete access coverage")
+        }
+        XCTAssertFalse(account.accessCoverage.isComplete)
+        XCTAssertEqual(account.accessCoverage.summary, "Missing scopes: read:org")
+    }
 }
 
 private struct TestExecutableLocator: GitHubCLIExecutableLocating {
@@ -54,11 +82,19 @@ private struct TestExecutableLocator: GitHubCLIExecutableLocating {
 }
 
 private actor TestAccountCommandRunner: CommandRunning {
+    private let accountState: String
+    private let scopes: String
+
+    init(accountState: String = "success", scopes: String = "read:org, repo") {
+        self.accountState = accountState
+        self.scopes = scopes
+    }
+
     func run(executableURL: URL, arguments: [String], environment: [String: String]) async -> CommandResult {
         if arguments.starts(with: ["auth", "status"]) {
             return CommandResult(
                 exitCode: 0,
-                standardOutput: #"{"hosts":{"github.com":[{"state":"success","active":true,"host":"github.com","login":"FranciscoMoretti","tokenSource":"keyring","scopes":"gist, read:org, repo","gitProtocol":"https"},{"state":"success","active":false,"host":"github.com","login":"francisco-acme","tokenSource":"keyring","scopes":"read:org, repo","gitProtocol":"https"}]}}"#,
+                standardOutput: #"{"hosts":{"github.com":[{"state":"#(accountState)","active":true,"host":"github.com","login":"FranciscoMoretti","tokenSource":"keyring","scopes":"#(scopes)","gitProtocol":"https"},{"state":"#(accountState)","active":false,"host":"github.com","login":"francisco-acme","tokenSource":"keyring","scopes":"#(scopes)","gitProtocol":"https"}]}}"#,
                 standardError: ""
             )
         }

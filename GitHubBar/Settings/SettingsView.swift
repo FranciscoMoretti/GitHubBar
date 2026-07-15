@@ -186,7 +186,7 @@ private struct AccountSettingsContent: View {
     private func accountProblemTitle(_ problem: AccountConnectionProblem) -> String {
         switch problem {
         case .cliMissing: "GitHub CLI is not installed"
-        case .authenticationRequired: "GitHub CLI needs authentication"
+        case .connectionRequired: "GitHub CLI connection required"
         case .incompleteAccess: "GitHub access is incomplete"
         case .unavailable: "GitHub account is unavailable"
         }

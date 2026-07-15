@@ -18,7 +18,13 @@ public protocol GitHubTransport: Sendable {
 
 public enum GitHubTransportError: Error, Sendable {
     case invalidResponse
-    case http(statusCode: Int, retryAfter: TimeInterval?, rateLimitResetAt: Date?)
+    case http(
+        statusCode: Int,
+        retryAfter: TimeInterval?,
+        rateLimitResetAt: Date?,
+        remainingRequests: Int?,
+        organizationAuthorizationRequired: Bool
+    )
 }
 
 public struct URLSessionGitHubTransport: GitHubTransport {
@@ -58,10 +64,16 @@ public struct URLSessionGitHubTransport: GitHubTransport {
             let rateLimitResetAt = headers["x-ratelimit-reset"]
                 .flatMap(TimeInterval.init)
                 .map(Date.init(timeIntervalSince1970:))
+            let remainingRequests = headers["x-ratelimit-remaining"].flatMap(Int.init)
+            let organizationAuthorizationRequired = headers["x-github-sso"]?
+                .lowercased()
+                .contains("required") == true
             throw GitHubTransportError.http(
                 statusCode: httpResponse.statusCode,
                 retryAfter: retryAfter,
-                rateLimitResetAt: rateLimitResetAt
+                rateLimitResetAt: rateLimitResetAt,
+                remainingRequests: remainingRequests,
+                organizationAuthorizationRequired: organizationAuthorizationRequired
             )
         }
 

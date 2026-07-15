@@ -77,7 +77,7 @@ cp GitHubBar/Resources/Info.plist "$app_path/Contents/Info.plist"
 cp docs/releases/validation-release.md "$app_path/Contents/Resources/VALIDATION-README.md"
 
 plutil -replace CFBundleExecutable -string GitHubBar "$app_path/Contents/Info.plist"
-plutil -replace CFBundleIdentifier -string com.franciscomoretti.GitHubBar "$app_path/Contents/Info.plist"
+plutil -replace CFBundleIdentifier -string com.franciscomoretti.githubbar "$app_path/Contents/Info.plist"
 plutil -replace CFBundleName -string GitHubBar "$app_path/Contents/Info.plist"
 plutil -replace CFBundleDisplayName -string GitHubBar "$app_path/Contents/Info.plist"
 plutil -replace CFBundleShortVersionString -string "$version" "$app_path/Contents/Info.plist"

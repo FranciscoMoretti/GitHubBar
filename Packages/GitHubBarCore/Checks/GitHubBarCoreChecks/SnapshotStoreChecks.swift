@@ -30,6 +30,28 @@ enum SnapshotStoreChecks {
             failures.append("FAILED: Snapshot store round trip")
         }
 
+        let incompatibleStore = InMemorySnapshotStore(
+            snapshot: WorkloadSnapshot(
+                schemaVersion: 2,
+                hostname: snapshot.hostname,
+                accountLogin: snapshot.accountLogin,
+                capturedAt: snapshot.capturedAt,
+                completeness: snapshot.completeness,
+                repositoryScope: snapshot.repositoryScope,
+                availableRepositories: snapshot.availableRepositories,
+                waitingForReview: snapshot.waitingForReview,
+                authoredPullRequests: snapshot.authoredPullRequests
+            )
+        )
+        do {
+            _ = try await incompatibleStore.load(hostname: "github.com", accountLogin: "FranciscoMoretti")
+            failures.append("FAILED: Incompatible Snapshot version is rejected")
+        } catch SnapshotStoreError.incompatibleVersion {
+            // Expected.
+        } catch {
+            failures.append("FAILED: Incompatible Snapshot version reports the correct failure")
+        }
+
         let memoryStore = InMemorySnapshotStore(snapshot: snapshot)
         let engine = WorkloadEngine(
             accountConnection: DelayedAccountConnection(),
@@ -41,13 +63,13 @@ enum SnapshotStoreChecks {
         let stream = await engine.states()
         var iterator = stream.makeAsyncIterator()
         _ = await iterator.next()
-        let cacheStart = ContinuousClock.now
+        let snapshotStart = ContinuousClock.now
         let launch = Task { await engine.send(.launch) }
-        if let cachedState = await iterator.next() {
-            check(cachedState.authoredPullRequests.map(\.id) == ["SNAPSHOT-PR"], "Cached presentation publishes before account inspection", failures: &failures)
-            check(cacheStart.duration(to: .now) < .milliseconds(250), "Cached presentation publishes within 250 ms", failures: &failures)
+        if let snapshotState = await iterator.next() {
+            check(snapshotState.authoredPullRequests.map(\.id) == ["SNAPSHOT-PR"], "Snapshot presentation publishes before account inspection", failures: &failures)
+            check(snapshotStart.duration(to: .now) < .milliseconds(250), "Snapshot presentation publishes within 250 ms", failures: &failures)
         } else {
-            failures.append("FAILED: Cached presentation publishes before account inspection")
+            failures.append("FAILED: Snapshot presentation publishes before account inspection")
         }
         await launch.value
 
@@ -70,7 +92,7 @@ enum SnapshotStoreChecks {
                     repositoryID: "REPO",
                     repositoryNameWithOwner: "owner/repo",
                     number: 1,
-                    title: "Cached pull request",
+                    title: "Saved pull request",
                     url: URL(string: "https://github.com/owner/repo/pull/1")!,
                     isDraft: false,
                     updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
@@ -88,6 +110,6 @@ enum SnapshotStoreChecks {
 private struct DelayedAccountConnection: AccountConnection {
     func inspect(selectedLogin: String?) async -> AccountConnectionResult {
         try? await Task.sleep(for: .milliseconds(50))
-        return .authenticationRequired
+        return .connectionRequired
     }
 }

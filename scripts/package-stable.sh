@@ -50,7 +50,7 @@ artifact_base="GitHubBar-$GITHUBBAR_VERSION-$GITHUBBAR_BUILD_NUMBER"
 final_zip="$dist_dir/$artifact_base.zip"
 notary_result="$build_root/notary-result.json"
 notary_log="$build_root/notary-log.json"
-sparkle_account="${GITHUBBAR_SPARKLE_KEY_ACCOUNT:-com.franciscomoretti.GitHubBar}"
+sparkle_account="${GITHUBBAR_SPARKLE_KEY_ACCOUNT:-com.franciscomoretti.githubbar}"
 
 rm -rf "$build_root"
 mkdir -p "$build_root" "$dist_dir" "$updates_dir"

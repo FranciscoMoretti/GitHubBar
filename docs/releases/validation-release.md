@@ -6,7 +6,7 @@ This artifact is the first installable validation build of GitHubBar. It is univ
 
 1. Download the validation ZIP from the GitHub prerelease and verify its adjacent SHA-256 file.
 2. Unzip it and move `GitHubBar.app` to `/Applications`.
-3. Ensure [GitHub CLI](https://cli.github.com/) is installed and authenticated with the accounts you want GitHubBar to inspect.
+3. Ensure [GitHub CLI](https://cli.github.com/) is installed and connected to the accounts you want GitHubBar to inspect.
 4. Open GitHubBar. It appears in the menu bar and does not add a Dock icon.
 
 Because this build is not Developer ID signed or notarized, macOS Gatekeeper may block the first launch after download. Control-click the app and choose Open; if macOS still blocks it, use System Settings → Privacy & Security → Open Anyway after confirming that the downloaded checksum matches the release checksum. This limitation is expected only for validation builds.
@@ -32,7 +32,7 @@ Expected architecture output is `arm64 x86_64`. The packaging script also valida
 
 Before publishing, manually verify on a supported macOS account:
 
-- cached startup and live refresh;
+- instant Snapshot startup and live reconciliation;
 - zero, single-digit, and `9+` status badges with the exact VoiceOver count;
 - both PR sections, drafts, reviewer avatars/fallbacks, and row keyboard activation;
 - repository search and persisted selection;

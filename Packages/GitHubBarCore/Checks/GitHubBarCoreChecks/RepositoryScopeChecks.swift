@@ -4,6 +4,7 @@ import GitHubBarCore
 enum RepositoryScopeChecks {
     static func run() async -> [String] {
         var failures: [String] = []
+        failures.append(contentsOf: await checkImmediateProjection())
         let workloadClient = RacingWorkloadClient()
         let settingsStore = InMemorySettingsStore(
             settings: AppSettings(selectedLogin: "FranciscoMoretti")
@@ -37,8 +38,85 @@ enum RepositoryScopeChecks {
         return failures
     }
 
+    private static func checkImmediateProjection() async -> [String] {
+        let snapshot = WorkloadSnapshot(
+            hostname: "github.com",
+            accountLogin: "FranciscoMoretti",
+            capturedAt: Date(),
+            completeness: .complete,
+            repositoryScope: .all,
+            availableRepositories: [
+                RepositoryChoice(id: "REPO-1", nameWithOwner: "owner/one"),
+                RepositoryChoice(id: "REPO-2", nameWithOwner: "owner/two"),
+            ],
+            waitingForReview: [pullRequest(id: "REVIEW-1", repositoryID: "REPO-1")],
+            authoredPullRequests: [
+                pullRequest(id: "AUTHORED-1", repositoryID: "REPO-1"),
+                pullRequest(id: "AUTHORED-2", repositoryID: "REPO-2"),
+            ]
+        )
+        let engine = WorkloadEngine(
+            accountConnection: DelayedScopeAccountConnection(),
+            snapshotStore: InMemorySnapshotStore(snapshot: snapshot),
+            settingsStore: InMemorySettingsStore(settings: AppSettings(selectedLogin: "FranciscoMoretti"))
+        )
+        let states = await engine.states()
+        let recorder = ScopeStateRecorder()
+        let recording = Task {
+            for await state in states { await recorder.append(state) }
+        }
+        let launch = Task { await engine.send(.launch) }
+
+        for _ in 0..<50 {
+            if await recorder.values.contains(where: { $0.authoredPullRequests.count == 2 }) { break }
+            try? await Task.sleep(for: .milliseconds(2))
+        }
+        await engine.send(.selectRepositoryScope(.selected(["REPO-1"])))
+        for _ in 0..<50 {
+            if await recorder.values.contains(where: { $0.repositoryScope == .selected(["REPO-1"]) }) { break }
+            try? await Task.sleep(for: .milliseconds(2))
+        }
+        let projectedState = await recorder.values.last(where: { $0.repositoryScope == .selected(["REPO-1"]) })
+        recording.cancel()
+        await launch.value
+
+        var failures: [String] = []
+        check(
+            projectedState?.authoredPullRequests.map(\.repositoryID) == ["REPO-1"],
+            "A Repository scope change immediately removes out-of-scope My PRs",
+            failures: &failures
+        )
+        check(
+            projectedState?.reviewCount == 1,
+            "A Repository scope change immediately constrains the review count",
+            failures: &failures
+        )
+        return failures
+    }
+
+    private static func pullRequest(id: String, repositoryID: String) -> PullRequestPresentation {
+        PullRequestPresentation(
+            id: id,
+            repositoryID: repositoryID,
+            repositoryNameWithOwner: "owner/\(repositoryID)",
+            number: 1,
+            title: id,
+            url: URL(string: "https://github.com/owner/repo/pull/1")!,
+            isDraft: false,
+            updatedAt: Date(),
+            reviewers: []
+        )
+    }
+
     private static func check(_ condition: Bool, _ message: String, failures: inout [String]) {
         if !condition { failures.append("FAILED: \(message)") }
+    }
+}
+
+private struct DelayedScopeAccountConnection: AccountConnection {
+    func inspect(selectedLogin: String?) async -> AccountConnectionResult {
+        try? await Task.sleep(for: .milliseconds(100))
+        return .connectionRequired
     }
 }
 

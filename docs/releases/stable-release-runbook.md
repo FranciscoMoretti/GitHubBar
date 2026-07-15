@@ -8,7 +8,7 @@ The maintainer—not an agent or repository—owns these credentials:
 
 1. A Developer ID Application certificate for the Apple Developer team. Install it in the signing Keychain and record its exact `security find-identity -v -p codesigning` description as `GITHUBBAR_SIGNING_IDENTITY`.
 2. Apple notarization credentials. For a workstation, create a named Keychain profile with `xcrun notarytool store-credentials`. For CI, use an App Store Connect Notary API key with the least required access and store the private key, key ID, and issuer ID as protected environment secrets.
-3. A Sparkle Ed25519 key. Run Sparkle's `generate_keys --account com.franciscomoretti.GitHubBar` once on a trusted Mac. Back up the private key with `generate_keys --account com.franciscomoretti.GitHubBar -x <offline-file>`, protect that file like a password, and keep it outside the repository. The printed public key is configuration, not a secret.
+3. A Sparkle Ed25519 key. Run Sparkle's `generate_keys --account com.franciscomoretti.githubbar` once on a trusted Mac. Back up the private key with `generate_keys --account com.franciscomoretti.githubbar -x <offline-file>`, protect that file like a password, and keep it outside the repository. The printed public key is configuration, not a secret.
 4. A protected GitHub `stable-release` environment requiring maintainer approval. Store the base64 certificate, certificate password, ephemeral Keychain password, Notary API key material, and Sparkle private key as environment secrets. Never put them in workflow inputs, repository variables, release notes, or issue comments.
 
 The stable appcast URL is:

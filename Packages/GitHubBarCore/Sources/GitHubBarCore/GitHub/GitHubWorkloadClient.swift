@@ -19,6 +19,7 @@ public enum WorkloadFailure: String, Sendable {
     case hydration
     case invalidResponse
     case rateLimited
+    case organizationAuthorizationRequired
     case unavailable
 }
 
@@ -27,19 +28,28 @@ public struct ReconciliationMetadata: Equatable, Sendable {
     public let remainingPoints: Int?
     public let resetAt: Date?
     public let warnings: [String]
+    public let rateLimitEncountered: Bool
 
-    public init(queryCost: Int, remainingPoints: Int?, resetAt: Date?, warnings: [String]) {
+    public init(
+        queryCost: Int,
+        remainingPoints: Int?,
+        resetAt: Date?,
+        warnings: [String],
+        rateLimitEncountered: Bool = false
+    ) {
         self.queryCost = queryCost
         self.remainingPoints = remainingPoints
         self.resetAt = resetAt
         self.warnings = warnings
+        self.rateLimitEncountered = rateLimitEncountered
     }
 
     public static let empty = ReconciliationMetadata(
         queryCost: 0,
         remainingPoints: nil,
         resetAt: nil,
-        warnings: []
+        warnings: [],
+        rateLimitEncountered: false
     )
 }
 

@@ -6,7 +6,7 @@ public protocol AccountConnection: Sendable {
 
 public enum AccountConnectionResult: Sendable {
     case cliMissing
-    case authenticationRequired
+    case connectionRequired
     case selectionRequired([AccountCandidate])
     case connected(ResolvedAccount)
     case failed(AccountConnectionFailure)

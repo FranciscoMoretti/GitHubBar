@@ -68,6 +68,67 @@ enum WorkloadClientChecks {
         } else {
             failures.append("FAILED: HTTP rate limits retain retry metadata")
         }
+
+        let organizationAuthorizationResult = await GraphQLGitHubWorkloadClient(
+            transport: OrganizationAuthorizationFixtureTransport()
+        ).reconcile(account: account, repositoryScope: .all, previousSnapshot: nil)
+        if case .failed(.organizationAuthorizationRequired, _) = organizationAuthorizationResult {
+            // Expected: organization authorization is an access-coverage problem, not rate limiting.
+        } else {
+            failures.append("FAILED: Organization SSO authorization is diagnosed separately from rate limiting")
+        }
+
+        let partialPageResult = await GraphQLGitHubWorkloadClient(
+            transport: PartialPageFixtureTransport()
+        ).reconcile(account: account, repositoryScope: .all, previousSnapshot: nil)
+        if case let .partial(partialSnapshot, metadata) = partialPageResult {
+            check(
+                partialSnapshot.authoredPullRequests.map(\.id) == ["PR-3"],
+                "A later failed search page keeps confirmed Pull Requests",
+                failures: &failures
+            )
+            check(
+                metadata.warnings.contains("pull-request search page incomplete"),
+                "A later failed search page marks reconciliation partial",
+                failures: &failures
+            )
+        } else {
+            failures.append("FAILED: A later failed search page produces a partial reconciliation")
+        }
+
+        let scaleTransport = TargetScaleFixtureTransport(pullRequestCount: 500)
+        let scaleClient = GraphQLGitHubWorkloadClient(transport: scaleTransport)
+        let scaleStart = ContinuousClock.now
+        let scaleResult = await scaleClient.reconcile(
+            account: account,
+            repositoryScope: .all,
+            previousSnapshot: nil
+        )
+        let scaleDuration = scaleStart.duration(to: .now)
+        let scaleMetrics = await scaleTransport.metrics()
+        if case let .complete(scaleSnapshot, _) = scaleResult {
+            check(scaleSnapshot.authoredPullRequests.count == 500, "Production reconciliation hydrates 500 Pull Requests", failures: &failures)
+            check(scaleDuration < .seconds(10), "Production reconciliation completes 500 Pull Requests in under 10 seconds", failures: &failures)
+            check(scaleMetrics.searchPages == 6, "Production reconciliation paginates a 500 Pull Request search", failures: &failures)
+            check(scaleMetrics.maximumHydrations > 1, "Production hydration runs concurrently", failures: &failures)
+            check(scaleMetrics.maximumHydrations <= 4, "Production hydration concurrency remains bounded", failures: &failures)
+        } else {
+            failures.append("FAILED: Production reconciliation completes at the 500 Pull Request target")
+        }
+
+        let partialRateTransport = TargetScaleFixtureTransport(
+            pullRequestCount: 40,
+            rateLimitsFirstHydration: true
+        )
+        let partialRateResult = await GraphQLGitHubWorkloadClient(
+            transport: partialRateTransport
+        ).reconcile(account: account, repositoryScope: .all, previousSnapshot: nil)
+        if case let .partial(partialRateSnapshot, metadata) = partialRateResult {
+            check(!partialRateSnapshot.authoredPullRequests.isEmpty, "Confirmed hydration batches survive a partial rate limit", failures: &failures)
+            check(metadata.rateLimitEncountered, "A partial rate limit requests bounded backoff", failures: &failures)
+        } else {
+            failures.append("FAILED: A partial hydration rate limit retains confirmed batches")
+        }
         return failures
     }
 
@@ -76,9 +137,174 @@ enum WorkloadClientChecks {
     }
 }
 
+private actor PartialPageFixtureTransport: GitHubTransport {
+    private let base = WorkloadFixtureTransport()
+
+    func execute(body: Data, accessToken: GitHubAccessToken) async throws -> GitHubTransportResponse {
+        let object = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+        let operationName = object?["operationName"] as? String
+        let variables = object?["variables"] as? [String: Any]
+        let query = variables?["query"] as? String ?? ""
+        let cursor = variables?["cursor"]
+
+        if operationName == "SearchPullRequests", query.contains("author:") {
+            if cursor is NSNull || cursor == nil {
+                let response = #"{"data":{"search":{"nodes":[{"id":"PR-3"}],"pageInfo":{"hasNextPage":true,"endCursor":"next"}},"rateLimit":{"cost":1,"remaining":4997,"resetAt":"2026-07-15T20:00:00Z"}}}"#
+                return GitHubTransportResponse(statusCode: 200, headers: [:], data: Data(response.utf8))
+            }
+            throw PartialFixtureError.laterPageFailed
+        }
+        return try await base.execute(body: body, accessToken: accessToken)
+    }
+
+    private enum PartialFixtureError: Error {
+        case laterPageFailed
+    }
+}
+
+private actor TargetScaleFixtureTransport: GitHubTransport {
+    private let pullRequestCount: Int
+    private let rateLimitsFirstHydration: Bool
+    private var currentHydrations = 0
+    private var maximumHydrations = 0
+    private var searchPages = 0
+    private var didRateLimitHydration = false
+
+    init(pullRequestCount: Int, rateLimitsFirstHydration: Bool = false) {
+        self.pullRequestCount = pullRequestCount
+        self.rateLimitsFirstHydration = rateLimitsFirstHydration
+    }
+
+    func metrics() -> (searchPages: Int, maximumHydrations: Int) {
+        (searchPages, maximumHydrations)
+    }
+
+    func execute(body: Data, accessToken: GitHubAccessToken) async throws -> GitHubTransportResponse {
+        let object = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+        let operationName = object?["operationName"] as? String
+        let variables = object?["variables"] as? [String: Any]
+        let data: Data
+
+        switch operationName {
+        case "ViewerRepositories":
+            data = responseData([
+                "viewer": ["repositories": [
+                    "nodes": [["id": "REPO-1", "nameWithOwner": "owner/repo", "isArchived": false]],
+                    "pageInfo": pageInfo(hasNextPage: false, endCursor: nil),
+                ]],
+                "rateLimit": rateLimit(),
+            ])
+        case "ViewerOrganizations":
+            data = responseData([
+                "viewer": ["organizations": [
+                    "nodes": [],
+                    "pageInfo": pageInfo(hasNextPage: false, endCursor: nil),
+                ]],
+                "rateLimit": rateLimit(),
+            ])
+        case "SearchPullRequests":
+            searchPages += 1
+            let query = variables?["query"] as? String ?? ""
+            guard query.contains("author:") else {
+                data = searchResponse(ids: [], nextCursor: nil)
+                break
+            }
+            let page = Int(variables?["cursor"] as? String ?? "0") ?? 0
+            let lowerBound = page * 100
+            let upperBound = min(pullRequestCount, lowerBound + 100)
+            let ids = lowerBound..<upperBound
+            let nextCursor = upperBound < pullRequestCount ? String(page + 1) : nil
+            data = searchResponse(ids: ids.map { "PR-\($0)" }, nextCursor: nextCursor)
+        case "HydratePullRequests":
+            if rateLimitsFirstHydration, !didRateLimitHydration {
+                didRateLimitHydration = true
+                throw GitHubTransportError.http(
+                    statusCode: 429,
+                    retryAfter: 5,
+                    rateLimitResetAt: nil,
+                    remainingRequests: 0,
+                    organizationAuthorizationRequired: false
+                )
+            }
+            currentHydrations += 1
+            maximumHydrations = max(maximumHydrations, currentHydrations)
+            try? await Task.sleep(for: .milliseconds(5))
+            let ids = variables?["ids"] as? [String] ?? []
+            let nodes = ids.map(hydratedNode(id:))
+            currentHydrations -= 1
+            data = responseData(["nodes": nodes, "rateLimit": rateLimit()])
+        default:
+            throw ScaleFixtureError.unexpectedOperation
+        }
+
+        return GitHubTransportResponse(statusCode: 200, headers: [:], data: data)
+    }
+
+    private func searchResponse(ids: [String], nextCursor: String?) -> Data {
+        responseData([
+            "search": [
+                "nodes": ids.map { ["id": $0] },
+                "pageInfo": pageInfo(hasNextPage: nextCursor != nil, endCursor: nextCursor),
+            ],
+            "rateLimit": rateLimit(),
+        ])
+    }
+
+    private func hydratedNode(id: String) -> [String: Any] {
+        let number = Int(id.replacingOccurrences(of: "PR-", with: "")) ?? 0
+        return [
+            "id": id,
+            "number": number,
+            "title": "Pull Request \(number)",
+            "url": "https://github.com/owner/repo/pull/\(number)",
+            "isDraft": false,
+            "state": "OPEN",
+            "updatedAt": "2026-07-15T12:00:00Z",
+            "author": ["login": "FranciscoMoretti"],
+            "repository": ["id": "REPO-1", "nameWithOwner": "owner/repo"],
+            "reviewRequests": ["nodes": [], "pageInfo": pageInfo(hasNextPage: false, endCursor: nil)],
+            "reviews": ["nodes": [], "pageInfo": pageInfo(hasNextPage: false, endCursor: nil)],
+        ]
+    }
+
+    private func responseData(_ data: [String: Any]) -> Data {
+        try! JSONSerialization.data(withJSONObject: ["data": data])
+    }
+
+    private func pageInfo(hasNextPage: Bool, endCursor: String?) -> [String: Any] {
+        ["hasNextPage": hasNextPage, "endCursor": endCursor ?? NSNull()]
+    }
+
+    private func rateLimit() -> [String: Any] {
+        ["cost": 1, "remaining": 4_000, "resetAt": "2026-07-15T20:00:00Z"]
+    }
+
+    private enum ScaleFixtureError: Error {
+        case unexpectedOperation
+    }
+}
+
+private struct OrganizationAuthorizationFixtureTransport: GitHubTransport {
+    func execute(body: Data, accessToken: GitHubAccessToken) async throws -> GitHubTransportResponse {
+        throw GitHubTransportError.http(
+            statusCode: 403,
+            retryAfter: nil,
+            rateLimitResetAt: nil,
+            remainingRequests: 4_998,
+            organizationAuthorizationRequired: true
+        )
+    }
+}
+
 private struct RateLimitedFixtureTransport: GitHubTransport {
     func execute(body: Data, accessToken: GitHubAccessToken) async throws -> GitHubTransportResponse {
-        throw GitHubTransportError.http(statusCode: 429, retryAfter: 60, rateLimitResetAt: nil)
+        throw GitHubTransportError.http(
+            statusCode: 429,
+            retryAfter: 60,
+            rateLimitResetAt: nil,
+            remainingRequests: 0,
+            organizationAuthorizationRequired: false
+        )
     }
 }
 

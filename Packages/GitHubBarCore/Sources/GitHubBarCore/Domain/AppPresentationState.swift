@@ -79,7 +79,7 @@ public enum AccountConnectionPresentation: Codable, Equatable, Sendable {
 
 public enum AccountConnectionProblem: String, Codable, Equatable, Sendable {
     case cliMissing
-    case authenticationRequired
+    case connectionRequired
     case incompleteAccess
     case unavailable
 }
@@ -108,7 +108,7 @@ public struct AccessCoverage: Codable, Equatable, Sendable {
 
 public enum RefreshHealthPresentation: Codable, Equatable, Sendable {
     case idle
-    case cached
+    case restoredSnapshot
     case fresh
     case partial(message: String)
     case failed(message: String)

@@ -40,6 +40,24 @@ public struct WorkloadSnapshot: Codable, Equatable, Sendable {
 }
 
 public extension WorkloadSnapshot {
+    func projected(to repositoryScope: RepositoryScope) -> WorkloadSnapshot {
+        let includes: (PullRequestPresentation) -> Bool = { pullRequest in
+            repositoryScope.includes(repositoryID: pullRequest.repositoryID)
+        }
+
+        return WorkloadSnapshot(
+            schemaVersion: schemaVersion,
+            hostname: hostname,
+            accountLogin: accountLogin,
+            capturedAt: capturedAt,
+            completeness: .partial,
+            repositoryScope: repositoryScope,
+            availableRepositories: availableRepositories,
+            waitingForReview: waitingForReview.filter(includes),
+            authoredPullRequests: authoredPullRequests.filter(includes)
+        )
+    }
+
     func mergingConfirmedUpdates(into previous: WorkloadSnapshot?) -> WorkloadSnapshot {
         guard let previous,
               previous.hostname.caseInsensitiveCompare(hostname) == .orderedSame,
@@ -51,11 +69,13 @@ public extension WorkloadSnapshot {
         let confirmedIDs = Set(waitingForReview.map(\.id) + authoredPullRequests.map(\.id))
         let mergedWaiting = Self.merge(
             confirmed: waitingForReview,
-            retained: previous.waitingForReview.filter { !confirmedIDs.contains($0.id) }
+            retained: previous.waitingForReview.filter { !confirmedIDs.contains($0.id) },
+            mostRecentFirst: false
         )
         let mergedAuthored = Self.merge(
             confirmed: authoredPullRequests,
-            retained: previous.authoredPullRequests.filter { !confirmedIDs.contains($0.id) }
+            retained: previous.authoredPullRequests.filter { !confirmedIDs.contains($0.id) },
+            mostRecentFirst: true
         )
         let repositoryByID = Dictionary(
             (previous.availableRepositories + availableRepositories).map { ($0.id, $0) },
@@ -77,10 +97,13 @@ public extension WorkloadSnapshot {
 
     private static func merge(
         confirmed: [PullRequestPresentation],
-        retained: [PullRequestPresentation]
+        retained: [PullRequestPresentation],
+        mostRecentFirst: Bool
     ) -> [PullRequestPresentation] {
         (confirmed + retained).sorted {
-            if $0.updatedAt != $1.updatedAt { return $0.updatedAt > $1.updatedAt }
+            if $0.updatedAt != $1.updatedAt {
+                return mostRecentFirst ? $0.updatedAt > $1.updatedAt : $0.updatedAt < $1.updatedAt
+            }
             return $0.id < $1.id
         }
     }
