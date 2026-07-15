@@ -23,6 +23,21 @@ enum WorkloadClientChecks {
         check(snapshot.authoredPullRequests.map(\.id) == ["PR-3"], "Authored pull requests are separate", failures: &failures)
         check(snapshot.authoredPullRequests.first?.isDraft == true, "Drafts remain in My PRs", failures: &failures)
         check(snapshot.waitingForReview.first?.reviewers.count == 4, "Review roster combines requests, submitted reviews, and later pages", failures: &failures)
+        check(snapshot.availableRepositories.map(\.id) == ["REPO-1", "REPO-2"], "Accessible Repository catalog is independent of active PRs", failures: &failures)
+
+        let selectedTransport = WorkloadFixtureTransport()
+        let selectedClient = GraphQLGitHubWorkloadClient(transport: selectedTransport)
+        _ = await selectedClient.reconcile(
+            account: account,
+            repositoryScope: .selected(["REPO-1"]),
+            previousSnapshot: nil
+        )
+        let scopedQueries = await selectedTransport.searchQueries()
+        check(
+            !scopedQueries.isEmpty && scopedQueries.allSatisfy { $0.contains("repo:alaro-ai/app") },
+            "Repository scope constrains every discovery search",
+            failures: &failures
+        )
         return failures
     }
 
@@ -32,6 +47,10 @@ enum WorkloadClientChecks {
 }
 
 private actor WorkloadFixtureTransport: GitHubTransport {
+    private var recordedSearchQueries: [String] = []
+
+    func searchQueries() -> [String] { recordedSearchQueries }
+
     func execute(body: Data, accessToken: GitHubAccessToken) async throws -> GitHubTransportResponse {
         let object = try JSONSerialization.jsonObject(with: body) as? [String: Any]
         let operationName = object?["operationName"] as? String
@@ -39,12 +58,15 @@ private actor WorkloadFixtureTransport: GitHubTransport {
 
         let response: String
         switch operationName {
+        case "ViewerRepositories":
+            response = #"{"data":{"viewer":{"repositories":{"nodes":[{"id":"REPO-1","nameWithOwner":"alaro-ai/app","isArchived":false},{"id":"REPO-2","nameWithOwner":"FranciscoMoretti/chat-js","isArchived":false}],"pageInfo":{"hasNextPage":false,"endCursor":null}}},"rateLimit":{"cost":1,"remaining":5000,"resetAt":"2026-07-15T20:00:00Z"}}}"#
         case "ViewerOrganizations":
             response = #"{"data":{"viewer":{"organizations":{"nodes":[{"login":"alaro-ai"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}},"rateLimit":{"cost":1,"remaining":4999,"resetAt":"2026-07-15T20:00:00Z"}}}"#
         case "OrganizationTeams":
             response = #"{"data":{"organization":{"teams":{"nodes":[{"name":"devs","slug":"devs","avatarUrl":null,"organization":{"login":"alaro-ai"}}],"pageInfo":{"hasNextPage":false,"endCursor":null}}},"rateLimit":{"cost":1,"remaining":4998,"resetAt":"2026-07-15T20:00:00Z"}}}"#
         case "SearchPullRequests":
             let query = variables?["query"] as? String ?? ""
+            recordedSearchQueries.append(query)
             if query.contains("user-review-requested:") {
                 response = searchResponse(ids: ["PR-1"])
             } else if query.contains("team-review-requested:") {

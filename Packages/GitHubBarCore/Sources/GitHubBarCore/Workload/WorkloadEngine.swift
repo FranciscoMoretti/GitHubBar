@@ -10,6 +10,7 @@ public actor WorkloadEngine {
     private var settings: AppSettings?
     private var resolvedAccount: ResolvedAccount?
     private var currentSnapshot: WorkloadSnapshot?
+    private var generation = 0
 
     public init(
         initialState: AppPresentationState = .empty,
@@ -52,6 +53,7 @@ public actor WorkloadEngine {
         case let .confirmAccount(login):
             var currentSettings = await currentSettings()
             if currentSettings.selectedLogin?.caseInsensitiveCompare(login) != .orderedSame {
+                generation += 1
                 clearAccountDerivedPresentation()
             }
             currentSettings.selectedLogin = login
@@ -60,6 +62,7 @@ public actor WorkloadEngine {
             await inspectAccount(selectedLogin: login)
         case let .selectRepositoryScope(scope):
             guard state.repositoryScope != scope else { return }
+            generation += 1
             state.repositoryScope = scope
             var currentSettings = await currentSettings()
             currentSettings.repositoryScope = scope
@@ -87,7 +90,9 @@ public actor WorkloadEngine {
     }
 
     private func inspectAccount(selectedLogin: String?) async {
+        generation += 1
         resolvedAccount = nil
+        state.isRefreshing = false
         state.accountConnection = .checking
         publish()
 
@@ -118,14 +123,18 @@ public actor WorkloadEngine {
 
     private func reconcile() async {
         guard let account = resolvedAccount else { return }
+        let reconciliationGeneration = generation
         state.isRefreshing = true
         publish()
 
-        switch await workloadClient.reconcile(
+        let result = await workloadClient.reconcile(
             account: account,
             repositoryScope: state.repositoryScope,
             previousSnapshot: currentSnapshot
-        ) {
+        )
+        guard reconciliationGeneration == generation else { return }
+
+        switch result {
         case let .complete(snapshot, _):
             apply(snapshot)
             state.refreshHealth = .fresh

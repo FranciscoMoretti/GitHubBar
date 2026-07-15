@@ -19,6 +19,20 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
     ) async -> WorkloadReconciliationResult {
         var metadata = MetadataAccumulator()
 
+        let repositoryCatalog: [RepositoryChoice]
+        do {
+            let output = try await discoverRepositories(account: account)
+            repositoryCatalog = output.value
+            metadata.merge(output.metadata)
+        } catch {
+            return .failed(failure(for: error, fallback: .discovery), metadata.presentation)
+        }
+        let repositoryQualifiers = makeRepositoryQualifiers(
+            scope: repositoryScope,
+            repositoryCatalog: repositoryCatalog,
+            metadata: &metadata
+        )
+
         let teams: [TeamReference]
         do {
             let output = try await discoverTeams(account: account)
@@ -31,7 +45,8 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         let directIDs: [String]
         do {
             let output = try await searchPullRequestIDs(
-                query: "is:pr is:open user-review-requested:\(account.login) sort:updated-asc",
+                baseQuery: "is:pr is:open user-review-requested:\(account.login) sort:updated-asc",
+                repositoryQualifiers: repositoryQualifiers,
                 account: account
             )
             directIDs = output.value
@@ -44,7 +59,8 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         for team in teams {
             do {
                 let output = try await searchPullRequestIDs(
-                    query: "is:pr is:open team-review-requested:\(team.searchQualifier) sort:updated-asc",
+                    baseQuery: "is:pr is:open team-review-requested:\(team.searchQualifier) sort:updated-asc",
+                    repositoryQualifiers: repositoryQualifiers,
                     account: account
                 )
                 teamIDs.append(contentsOf: output.value)
@@ -57,7 +73,8 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         let authoredIDs: [String]
         do {
             let output = try await searchPullRequestIDs(
-                query: "is:pr is:open author:\(account.login) sort:updated-desc",
+                baseQuery: "is:pr is:open author:\(account.login) sort:updated-desc",
+                repositoryQualifiers: repositoryQualifiers,
                 account: account
             )
             authoredIDs = output.value
@@ -117,14 +134,6 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
             return lhs.id < rhs.id
         }
 
-        var repositoriesByID: [String: RepositoryChoice] = [:]
-        for record in hydratedRecords {
-            repositoriesByID[record.repositoryID] = RepositoryChoice(
-                id: record.repositoryID,
-                nameWithOwner: record.repositoryNameWithOwner
-            )
-        }
-
         let completeness: WorkloadSnapshot.Completeness = metadata.warnings.isEmpty ? .complete : .partial
         let snapshot = WorkloadSnapshot(
             hostname: account.hostname,
@@ -132,7 +141,7 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
             capturedAt: Date(),
             completeness: completeness,
             repositoryScope: repositoryScope,
-            availableRepositories: repositoriesByID.values.sorted { $0.nameWithOwner.localizedCaseInsensitiveCompare($1.nameWithOwner) == .orderedAscending },
+            availableRepositories: repositoryCatalog,
             waitingForReview: waitingForReview,
             authoredPullRequests: authoredPullRequests
         )
@@ -141,6 +150,37 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
             return .complete(snapshot, metadata.presentation)
         }
         return .partial(snapshot, metadata.presentation)
+    }
+
+    private func discoverRepositories(account: ResolvedAccount) async throws -> OperationOutput<[RepositoryChoice]> {
+        var metadata = MetadataAccumulator()
+        var repositories: [RepositoryChoice] = []
+        var cursor: String?
+
+        repeat {
+            let page: Executed<ViewerRepositoriesData> = try await execute(
+                operationName: "ViewerRepositories",
+                query: Self.viewerRepositoriesQuery,
+                variables: CursorVariables(cursor: cursor),
+                account: account
+            )
+            repositories.append(contentsOf: page.data.viewer.repositories.nodes.map {
+                RepositoryChoice(id: $0.id, nameWithOwner: $0.nameWithOwner)
+            })
+            metadata.record(
+                rateLimit: page.data.rateLimit,
+                hasErrors: page.hasErrors,
+                warning: "repository catalog incomplete"
+            )
+            cursor = page.data.viewer.repositories.pageInfo.hasNextPage
+                ? page.data.viewer.repositories.pageInfo.endCursor
+                : nil
+        } while cursor != nil
+
+        let uniqueRepositories = Dictionary(uniqueKeysWithValues: repositories.map { ($0.id, $0) })
+            .values
+            .sorted { $0.nameWithOwner.localizedCaseInsensitiveCompare($1.nameWithOwner) == .orderedAscending }
+        return OperationOutput(value: uniqueRepositories, metadata: metadata)
     }
 
     private func discoverTeams(account: ResolvedAccount) async throws -> OperationOutput<[TeamReference]> {
@@ -199,6 +239,22 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
             .values
             .sorted { $0.searchQualifier < $1.searchQualifier }
         return OperationOutput(value: uniqueTeams, metadata: metadata)
+    }
+
+    private func searchPullRequestIDs(
+        baseQuery: String,
+        repositoryQualifiers: [String],
+        account: ResolvedAccount
+    ) async throws -> OperationOutput<[String]> {
+        var metadata = MetadataAccumulator()
+        var ids: [String] = []
+        for qualifier in repositoryQualifiers {
+            let query = qualifier.isEmpty ? baseQuery : "\(baseQuery) \(qualifier)"
+            let output = try await searchPullRequestIDs(query: query, account: account)
+            ids.append(contentsOf: output.value)
+            metadata.merge(output.metadata)
+        }
+        return OperationOutput(value: Array(Set(ids)), metadata: metadata)
     }
 
     private func searchPullRequestIDs(
@@ -306,6 +362,39 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         }
     }
 
+    private func makeRepositoryQualifiers(
+        scope: RepositoryScope,
+        repositoryCatalog: [RepositoryChoice],
+        metadata: inout MetadataAccumulator
+    ) -> [String] {
+        guard case let .selected(selectedRepositoryIDs) = scope else {
+            return [""]
+        }
+
+        let catalogByID = Dictionary(uniqueKeysWithValues: repositoryCatalog.map { ($0.id, $0) })
+        let selectedRepositories = selectedRepositoryIDs.compactMap { catalogByID[$0] }
+            .sorted { $0.nameWithOwner < $1.nameWithOwner }
+        if selectedRepositories.count != selectedRepositoryIDs.count {
+            metadata.warnings.append("some selected repositories are unavailable")
+        }
+        guard !selectedRepositories.isEmpty else { return [] }
+
+        var shards: [String] = []
+        var current = ""
+        for repository in selectedRepositories {
+            let qualifier = "repo:\(repository.nameWithOwner)"
+            let candidate = current.isEmpty ? qualifier : "\(current) \(qualifier)"
+            if candidate.count > 180, !current.isEmpty {
+                shards.append(current)
+                current = qualifier
+            } else {
+                current = candidate
+            }
+        }
+        if !current.isEmpty { shards.append(current) }
+        return shards
+    }
+
     private func failure(for error: Error?, fallback: WorkloadFailure) -> WorkloadFailure {
         guard let error else { return fallback }
         if case let GitHubTransportError.http(statusCode, _) = error, statusCode == 403 || statusCode == 429 {
@@ -316,6 +405,25 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
 }
 
 private extension GraphQLGitHubWorkloadClient {
+    static let viewerRepositoriesQuery = #"""
+    query ViewerRepositories($cursor: String) {
+      viewer {
+        repositories(
+          first: 100
+          after: $cursor
+          affiliations: [OWNER, COLLABORATOR, ORGANIZATION_MEMBER]
+          ownerAffiliations: [OWNER, COLLABORATOR, ORGANIZATION_MEMBER]
+          isArchived: false
+          orderBy: { field: UPDATED_AT, direction: DESC }
+        ) {
+          nodes { id nameWithOwner isArchived }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+      rateLimit { cost remaining resetAt }
+    }
+    """#
+
     static let viewerOrganizationsQuery = #"""
     query ViewerOrganizations($cursor: String) {
       viewer {
@@ -514,6 +622,26 @@ private struct RosterPageVariables: Encodable, Sendable {
 private struct ViewerOrganizationsData: Decodable, Sendable {
     let viewer: ViewerDTO
     let rateLimit: RateLimitDTO
+}
+
+private struct ViewerRepositoriesData: Decodable, Sendable {
+    let viewer: ViewerRepositoriesDTO
+    let rateLimit: RateLimitDTO
+}
+
+private struct ViewerRepositoriesDTO: Decodable, Sendable {
+    let repositories: RepositoryConnectionDTO
+}
+
+private struct RepositoryConnectionDTO: Decodable, Sendable {
+    let nodes: [RepositoryCatalogDTO]
+    let pageInfo: PageInfoDTO
+}
+
+private struct RepositoryCatalogDTO: Decodable, Sendable {
+    let id: String
+    let nameWithOwner: String
+    let isArchived: Bool
 }
 
 private struct ViewerDTO: Decodable, Sendable {
