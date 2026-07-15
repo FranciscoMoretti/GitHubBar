@@ -25,14 +25,14 @@ public struct ResolvedAccount: Sendable {
     public let hostname: String
     public let scopes: Set<String>
     public let accessCoverage: AccessCoverage
-    let accessToken: AccountAccessToken
+    let accessToken: GitHubAccessToken
 
-    init(
+    public init(
         login: String,
         hostname: String,
         scopes: Set<String>,
         accessCoverage: AccessCoverage,
-        accessToken: AccountAccessToken
+        accessToken: GitHubAccessToken
     ) {
         self.login = login
         self.hostname = hostname
@@ -42,11 +42,15 @@ public struct ResolvedAccount: Sendable {
     }
 }
 
-struct AccountAccessToken: CustomDebugStringConvertible, CustomStringConvertible, Sendable {
-    let value: String
+public struct GitHubAccessToken: CustomDebugStringConvertible, CustomStringConvertible, Sendable {
+    let rawValue: String
 
-    var description: String { "<redacted>" }
-    var debugDescription: String { "<redacted>" }
+    public init(_ rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public var description: String { "<redacted>" }
+    public var debugDescription: String { "<redacted>" }
 }
 
 public struct UnavailableAccountConnection: AccountConnection {

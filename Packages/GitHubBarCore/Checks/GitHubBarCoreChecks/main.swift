@@ -1,9 +1,8 @@
 import Foundation
 import GitHubBarCore
 
-@main
 enum GitHubBarCoreChecks {
-    static func main() async {
+    static func run() async {
         var failures: [String] = []
 
         let engine = WorkloadEngine(initialState: .empty)
@@ -16,6 +15,9 @@ enum GitHubBarCoreChecks {
 
         check(initialState == .empty, "Initial state is empty", failures: &failures)
         check(initialState.reviewCount == 0, "Initial Review count is zero", failures: &failures)
+        check(ReviewCountBadge.text(for: 0) == nil, "Zero Review count hides its badge", failures: &failures)
+        check(ReviewCountBadge.text(for: 4) == "4", "Single-digit Review count is shown", failures: &failures)
+        check(ReviewCountBadge.text(for: 10) == "9+", "Double-digit Review count is capped visually", failures: &failures)
         check(
             initialState.reviewCountAccessibilityLabel == "No pull requests waiting for your review",
             "Zero Review count has an exact accessibility label",
@@ -33,6 +35,7 @@ enum GitHubBarCoreChecks {
         )
 
         await checkAccountSelection(failures: &failures)
+        failures.append(contentsOf: await WorkloadClientChecks.run())
 
         if failures.isEmpty {
             print("GitHubBarCore checks passed")
@@ -71,6 +74,8 @@ enum GitHubBarCoreChecks {
         }
     }
 }
+
+await GitHubBarCoreChecks.run()
 
 private struct FixedExecutableLocator: GitHubCLIExecutableLocating {
     let url: URL?

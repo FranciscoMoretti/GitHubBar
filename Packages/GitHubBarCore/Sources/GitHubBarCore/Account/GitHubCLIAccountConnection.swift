@@ -99,7 +99,7 @@ public struct GitHubCLIAccountConnection: AccountConnection {
                 hostname: selected.host,
                 scopes: scopes,
                 accessCoverage: accessCoverage,
-                accessToken: AccountAccessToken(value: token)
+                accessToken: GitHubAccessToken(token)
             )
         )
     }

@@ -20,12 +20,14 @@ struct PopoverView: View {
                         WorkloadSection(
                             title: "Waiting for my review",
                             pullRequests: appModel.state.waitingForReview,
-                            emptyMessage: "Nothing is waiting for your review."
+                            emptyMessage: "Nothing is waiting for your review.",
+                            showsRepository: showsRepositoryInRows
                         )
                         WorkloadSection(
                             title: "My PRs",
                             pullRequests: appModel.state.authoredPullRequests,
-                            emptyMessage: "You have no open pull requests."
+                            emptyMessage: "You have no open pull requests.",
+                            showsRepository: showsRepositoryInRows
                         )
                     }
                     .padding(.horizontal, 18)
@@ -118,6 +120,14 @@ struct PopoverView: View {
     private var isConnected: Bool {
         if case .connected = appModel.state.accountConnection { return true }
         return false
+    }
+
+    private var showsRepositoryInRows: Bool {
+        if case let .selected(repositoryIDs) = appModel.state.repositoryScope,
+           repositoryIDs.count == 1 {
+            return false
+        }
+        return true
     }
 }
 

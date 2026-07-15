@@ -1,4 +1,5 @@
 import AppKit
+import GitHubBarCore
 
 enum StatusIconRenderer {
     private static let iconSize = NSSize(width: 18, height: 18)
@@ -6,8 +7,8 @@ enum StatusIconRenderer {
     static func image(reviewCount: Int) -> NSImage {
         let image = NSImage(size: iconSize, flipped: false) { bounds in
             drawPullRequestMark(in: bounds)
-            if reviewCount > 0 {
-                drawBadge(reviewCount: reviewCount)
+            if let badgeText = ReviewCountBadge.text(for: reviewCount) {
+                drawBadge(text: badgeText)
             }
             return true
         }
@@ -58,8 +59,7 @@ enum StatusIconRenderer {
         node.stroke()
     }
 
-    private static func drawBadge(reviewCount: Int) {
-        let visibleCount = reviewCount > 9 ? "9+" : String(reviewCount)
+    private static func drawBadge(text: String) {
         let badgeRect = NSRect(x: 9.1, y: 0.3, width: 8.6, height: 8.6)
 
         NSColor.black.setFill()
@@ -67,12 +67,12 @@ enum StatusIconRenderer {
 
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current?.compositingOperation = .clear
-        let fontSize: CGFloat = reviewCount > 9 ? 4.2 : 5.6
+        let fontSize: CGFloat = text == "9+" ? 4.2 : 5.6
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .bold),
             .foregroundColor: NSColor.clear,
         ]
-        let string = NSAttributedString(string: visibleCount, attributes: attributes)
+        let string = NSAttributedString(string: text, attributes: attributes)
         let size = string.size()
         string.draw(at: NSPoint(x: badgeRect.midX - size.width / 2, y: badgeRect.midY - size.height / 2 - 0.2))
         NSGraphicsContext.restoreGraphicsState()

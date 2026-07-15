@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 executableLocator: GitHubCLIExecutableLocator(),
                 commandRunner: ProcessCommandRunner()
             ),
+            workloadClient: GraphQLGitHubWorkloadClient(),
             settingsStore: UserDefaultsSettingsStore()
         )
         let model = AppModel(engine: engine)

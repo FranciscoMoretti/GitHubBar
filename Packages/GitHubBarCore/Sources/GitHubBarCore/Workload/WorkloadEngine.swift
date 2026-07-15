@@ -4,17 +4,21 @@ public actor WorkloadEngine {
     private var state: AppPresentationState
     private var subscribers: [UUID: AsyncStream<AppPresentationState>.Continuation] = [:]
     private let accountConnection: any AccountConnection
+    private let workloadClient: any GitHubWorkloadClient
     private let settingsStore: any SettingsStore
     private var settings: AppSettings?
     private var resolvedAccount: ResolvedAccount?
+    private var currentSnapshot: WorkloadSnapshot?
 
     public init(
         initialState: AppPresentationState = .empty,
         accountConnection: any AccountConnection = UnavailableAccountConnection(),
+        workloadClient: any GitHubWorkloadClient = UnavailableGitHubWorkloadClient(),
         settingsStore: any SettingsStore = InMemorySettingsStore()
     ) {
         state = initialState
         self.accountConnection = accountConnection
+        self.workloadClient = workloadClient
         self.settingsStore = settingsStore
     }
 
@@ -56,13 +60,15 @@ public actor WorkloadEngine {
             settings = currentSettings
             await settingsStore.save(currentSettings)
             publish()
+            await reconcile()
         case let .setRefreshCadence(cadence):
             var currentSettings = await currentSettings()
             currentSettings.refreshCadence = cadence
             settings = currentSettings
             await settingsStore.save(currentSettings)
-        case .manualRefresh,
-             .setPopoverOpen:
+        case .manualRefresh:
+            await reconcile()
+        case .setPopoverOpen:
             break
         }
     }
@@ -95,14 +101,53 @@ public actor WorkloadEngine {
                 await settingsStore.save(currentSettings)
             }
             state.accountConnection = .connected(login: account.login, accessCoverage: account.accessCoverage)
+            publish()
+            await reconcile()
+            return
         case .failed:
             state.accountConnection = .connectionRequired(.unavailable)
         }
         publish()
     }
 
+    private func reconcile() async {
+        guard let account = resolvedAccount else { return }
+        state.isRefreshing = true
+        publish()
+
+        switch await workloadClient.reconcile(
+            account: account,
+            repositoryScope: state.repositoryScope,
+            previousSnapshot: currentSnapshot
+        ) {
+        case let .complete(snapshot, _):
+            apply(snapshot)
+            state.refreshHealth = .fresh
+        case let .partial(snapshot, metadata):
+            apply(snapshot)
+            state.refreshHealth = .partial(
+                message: metadata.warnings.first ?? "Some pull-request data could not be refreshed."
+            )
+        case let .failed(failure, _):
+            state.refreshHealth = failure == .rateLimited
+                ? .rateLimited(until: nil)
+                : .failed(message: "GitHub could not refresh the active workload.")
+        }
+        state.isRefreshing = false
+        publish()
+    }
+
+    private func apply(_ snapshot: WorkloadSnapshot) {
+        currentSnapshot = snapshot
+        state.availableRepositories = snapshot.availableRepositories
+        state.waitingForReview = snapshot.waitingForReview
+        state.authoredPullRequests = snapshot.authoredPullRequests
+        state.lastUpdatedAt = snapshot.capturedAt
+    }
+
     private func clearAccountDerivedPresentation() {
         resolvedAccount = nil
+        currentSnapshot = nil
         state.availableRepositories = []
         state.waitingForReview = []
         state.authoredPullRequests = []

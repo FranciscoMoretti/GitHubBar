@@ -5,6 +5,7 @@ struct WorkloadSection: View {
     let title: String
     let pullRequests: [PullRequestPresentation]
     let emptyMessage: String
+    let showsRepository: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -25,7 +26,7 @@ struct WorkloadSection: View {
                     .padding(.vertical, 9)
             } else {
                 ForEach(pullRequests) { pullRequest in
-                    PullRequestRow(pullRequest: pullRequest)
+                    PullRequestRow(pullRequest: pullRequest, showsRepository: showsRepository)
                 }
             }
         }

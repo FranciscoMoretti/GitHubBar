@@ -2,6 +2,12 @@ import XCTest
 @testable import GitHubBarCore
 
 final class WorkloadEngineTests: XCTestCase {
+    func testReviewCountBadgeCapsVisualTextWithoutCappingAccessibilityCount() {
+        XCTAssertNil(ReviewCountBadge.text(for: 0))
+        XCTAssertEqual(ReviewCountBadge.text(for: 4), "4")
+        XCTAssertEqual(ReviewCountBadge.text(for: 57), "9+")
+    }
+
     func testSubscriberImmediatelyReceivesTruthfulEmptyPresentation() async throws {
         let engine = WorkloadEngine(initialState: .empty)
         let stream = await engine.states()
@@ -71,7 +77,7 @@ private struct TestAccountConnection: AccountConnection {
                 hostname: "github.com",
                 scopes: ["read:org", "repo"],
                 accessCoverage: AccessCoverage(isComplete: true),
-                accessToken: AccountAccessToken(value: "test-token")
+                accessToken: GitHubAccessToken("test-token")
             )
         )
     }
