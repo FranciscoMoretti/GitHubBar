@@ -9,7 +9,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var visualValidationWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let engine = WorkloadEngine()
+        let engine = WorkloadEngine(
+            accountConnection: GitHubCLIAccountConnection(
+                executableLocator: GitHubCLIExecutableLocator(),
+                commandRunner: ProcessCommandRunner()
+            ),
+            settingsStore: UserDefaultsSettingsStore()
+        )
         let model = AppModel(engine: engine)
         let statusItemController = StatusItemController(appModel: model)
 

@@ -32,6 +32,8 @@ enum GitHubBarCoreChecks {
             failures: &failures
         )
 
+        await checkAccountSelection(failures: &failures)
+
         if failures.isEmpty {
             print("GitHubBarCore checks passed")
         } else {
@@ -43,5 +45,54 @@ enum GitHubBarCoreChecks {
         if !condition {
             failures.append("FAILED: \(message)")
         }
+    }
+
+    private static func checkAccountSelection(failures: inout [String]) async {
+        let runner = AccountCheckCommandRunner()
+        let connection = GitHubCLIAccountConnection(
+            executableLocator: FixedExecutableLocator(url: URL(fileURLWithPath: "/opt/homebrew/bin/gh")),
+            commandRunner: runner
+        )
+
+        let unselected = await connection.inspect(selectedLogin: nil)
+        if case let .selectionRequired(candidates) = unselected {
+            check(candidates.map(\.login) == ["FranciscoMoretti", "francisco-acme"], "Multiple accounts require an explicit selection", failures: &failures)
+        } else {
+            failures.append("FAILED: Multiple accounts require an explicit selection")
+        }
+
+        let selected = await connection.inspect(selectedLogin: "francisco-acme")
+        if case let .connected(account) = selected {
+            check(account.login == "francisco-acme", "Selected account is verified", failures: &failures)
+            check(account.accessCoverage.isComplete, "Required Access coverage is detected", failures: &failures)
+            check(!String(reflecting: selected).contains("secret-test-token"), "Account credentials are redacted", failures: &failures)
+        } else {
+            failures.append("FAILED: Selected account connects")
+        }
+    }
+}
+
+private struct FixedExecutableLocator: GitHubCLIExecutableLocating {
+    let url: URL?
+
+    func locate() -> URL? { url }
+}
+
+private actor AccountCheckCommandRunner: CommandRunning {
+    func run(executableURL: URL, arguments: [String], environment: [String: String]) async -> CommandResult {
+        if arguments.starts(with: ["auth", "status"]) {
+            return CommandResult(
+                exitCode: 0,
+                standardOutput: #"{"hosts":{"github.com":[{"state":"success","active":true,"host":"github.com","login":"FranciscoMoretti","tokenSource":"keyring","scopes":"gist, read:org, repo","gitProtocol":"https"},{"state":"success","active":false,"host":"github.com","login":"francisco-acme","tokenSource":"keyring","scopes":"read:org, repo","gitProtocol":"https"}]}}"#,
+                standardError: ""
+            )
+        }
+        if arguments.starts(with: ["auth", "token"]) {
+            return CommandResult(exitCode: 0, standardOutput: "secret-test-token\n", standardError: "")
+        }
+        if arguments.starts(with: ["api", "user"]) {
+            return CommandResult(exitCode: 0, standardOutput: "francisco-acme\n", standardError: "")
+        }
+        return CommandResult(exitCode: 1, standardOutput: "", standardError: "Unexpected command")
     }
 }

@@ -27,4 +27,52 @@ final class WorkloadEngineTests: XCTestCase {
 
         XCTAssertEqual(state.repositoryScope, .selected(["openai/codex"]))
     }
+
+    func testConfirmingMonitoredAccountPersistsOnlyItsLogin() async throws {
+        let settingsStore = InMemorySettingsStore()
+        let engine = WorkloadEngine(
+            accountConnection: TestAccountConnection(),
+            settingsStore: settingsStore
+        )
+        let stream = await engine.states()
+        var iterator = stream.makeAsyncIterator()
+        _ = await iterator.next()
+
+        await engine.send(.launch)
+        _ = await iterator.next()
+        let selectionState = try XCTUnwrap(await iterator.next())
+        guard case .selectionRequired = selectionState.accountConnection else {
+            return XCTFail("Expected account selection")
+        }
+
+        await engine.send(.confirmAccount("FranciscoMoretti"))
+        _ = await iterator.next()
+        let connectedState = try XCTUnwrap(await iterator.next())
+        guard case let .connected(login, _) = connectedState.accountConnection else {
+            return XCTFail("Expected connected account")
+        }
+
+        XCTAssertEqual(login, "FranciscoMoretti")
+        XCTAssertEqual(await settingsStore.load().selectedLogin, "FranciscoMoretti")
+    }
+}
+
+private struct TestAccountConnection: AccountConnection {
+    func inspect(selectedLogin: String?) async -> AccountConnectionResult {
+        guard let selectedLogin else {
+            return .selectionRequired([
+                AccountCandidate(login: "FranciscoMoretti", hostname: "github.com"),
+                AccountCandidate(login: "francisco-acme", hostname: "github.com"),
+            ])
+        }
+        return .connected(
+            ResolvedAccount(
+                login: selectedLogin,
+                hostname: "github.com",
+                scopes: ["read:org", "repo"],
+                accessCoverage: AccessCoverage(isComplete: true),
+                accessToken: AccountAccessToken(value: "test-token")
+            )
+        )
+    }
 }

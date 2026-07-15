@@ -3,9 +3,19 @@ import Foundation
 public actor WorkloadEngine {
     private var state: AppPresentationState
     private var subscribers: [UUID: AsyncStream<AppPresentationState>.Continuation] = [:]
+    private let accountConnection: any AccountConnection
+    private let settingsStore: any SettingsStore
+    private var settings: AppSettings?
+    private var resolvedAccount: ResolvedAccount?
 
-    public init(initialState: AppPresentationState = .empty) {
+    public init(
+        initialState: AppPresentationState = .empty,
+        accountConnection: any AccountConnection = UnavailableAccountConnection(),
+        settingsStore: any SettingsStore = InMemorySettingsStore()
+    ) {
         state = initialState
+        self.accountConnection = accountConnection
+        self.settingsStore = settingsStore
     }
 
     public func states() -> AsyncStream<AppPresentationState> {
@@ -21,18 +31,84 @@ public actor WorkloadEngine {
 
     public func send(_ command: WorkloadCommand) async {
         switch command {
+        case .launch:
+            let loadedSettings = await settingsStore.load()
+            settings = loadedSettings
+            state.repositoryScope = loadedSettings.repositoryScope
+            await inspectAccount(selectedLogin: loadedSettings.selectedLogin)
+        case .recheckAccountConnection:
+            let currentSettings = await currentSettings()
+            await inspectAccount(selectedLogin: currentSettings.selectedLogin)
+        case let .confirmAccount(login):
+            var currentSettings = await currentSettings()
+            if currentSettings.selectedLogin?.caseInsensitiveCompare(login) != .orderedSame {
+                clearAccountDerivedPresentation()
+            }
+            currentSettings.selectedLogin = login
+            settings = currentSettings
+            await settingsStore.save(currentSettings)
+            await inspectAccount(selectedLogin: login)
         case let .selectRepositoryScope(scope):
             guard state.repositoryScope != scope else { return }
             state.repositoryScope = scope
+            var currentSettings = await currentSettings()
+            currentSettings.repositoryScope = scope
+            settings = currentSettings
+            await settingsStore.save(currentSettings)
             publish()
-        case .launch,
-             .manualRefresh,
-             .setPopoverOpen,
-             .confirmAccount,
-             .recheckAccountConnection,
-             .setRefreshCadence:
+        case let .setRefreshCadence(cadence):
+            var currentSettings = await currentSettings()
+            currentSettings.refreshCadence = cadence
+            settings = currentSettings
+            await settingsStore.save(currentSettings)
+        case .manualRefresh,
+             .setPopoverOpen:
             break
         }
+    }
+
+    private func currentSettings() async -> AppSettings {
+        if let settings { return settings }
+        let loadedSettings = await settingsStore.load()
+        settings = loadedSettings
+        return loadedSettings
+    }
+
+    private func inspectAccount(selectedLogin: String?) async {
+        resolvedAccount = nil
+        state.accountConnection = .checking
+        publish()
+
+        switch await accountConnection.inspect(selectedLogin: selectedLogin) {
+        case .cliMissing:
+            state.accountConnection = .connectionRequired(.cliMissing)
+        case .authenticationRequired:
+            state.accountConnection = .connectionRequired(.authenticationRequired)
+        case let .selectionRequired(candidates):
+            state.accountConnection = .selectionRequired(candidates)
+        case let .connected(account):
+            resolvedAccount = account
+            var currentSettings = await currentSettings()
+            if currentSettings.selectedLogin?.caseInsensitiveCompare(account.login) != .orderedSame {
+                currentSettings.selectedLogin = account.login
+                settings = currentSettings
+                await settingsStore.save(currentSettings)
+            }
+            state.accountConnection = .connected(login: account.login, accessCoverage: account.accessCoverage)
+        case .failed:
+            state.accountConnection = .connectionRequired(.unavailable)
+        }
+        publish()
+    }
+
+    private func clearAccountDerivedPresentation() {
+        resolvedAccount = nil
+        state.availableRepositories = []
+        state.waitingForReview = []
+        state.authoredPullRequests = []
+        state.lastUpdatedAt = nil
+        state.refreshHealth = .idle
+        state.isRefreshing = false
     }
 
     private func publish() {

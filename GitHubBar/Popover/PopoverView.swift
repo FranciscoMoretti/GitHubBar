@@ -9,21 +9,32 @@ struct PopoverView: View {
         VStack(spacing: 0) {
             header
             insetDivider
-            RepositoryScopeControl(appModel: appModel)
-            ScrollView {
-                VStack(spacing: 0) {
-                    WorkloadSection(
-                        title: "Waiting for my review",
-                        pullRequests: appModel.state.waitingForReview,
-                        emptyMessage: "Nothing is waiting for your review."
-                    )
-                    WorkloadSection(
-                        title: "My PRs",
-                        pullRequests: appModel.state.authoredPullRequests,
-                        emptyMessage: "You have no open pull requests."
-                    )
+            if isConnected {
+                RepositoryScopeControl(appModel: appModel)
+                ScrollView {
+                    VStack(spacing: 0) {
+                        if case let .connected(_, accessCoverage) = appModel.state.accountConnection,
+                           !accessCoverage.isComplete {
+                            AccessCoverageBanner(accessCoverage: accessCoverage)
+                        }
+                        WorkloadSection(
+                            title: "Waiting for my review",
+                            pullRequests: appModel.state.waitingForReview,
+                            emptyMessage: "Nothing is waiting for your review."
+                        )
+                        WorkloadSection(
+                            title: "My PRs",
+                            pullRequests: appModel.state.authoredPullRequests,
+                            emptyMessage: "You have no open pull requests."
+                        )
+                    }
+                    .padding(.horizontal, 18)
                 }
-                .padding(.horizontal, 18)
+            } else {
+                AccountConnectionView(
+                    accountConnection: appModel.state.accountConnection,
+                    send: appModel.send
+                )
             }
             footer
         }
@@ -61,8 +72,10 @@ struct PopoverView: View {
     private var footer: some View {
         VStack(spacing: 0) {
             Divider().padding(.horizontal, 18)
-            MenuActionRow(title: "Refresh", systemImage: "arrow.clockwise", shortcut: "⌘ R") {
-                appModel.send(.manualRefresh)
+            if isConnected {
+                MenuActionRow(title: "Refresh", systemImage: "arrow.clockwise", shortcut: "⌘ R") {
+                    appModel.send(.manualRefresh)
+                }
             }
             MenuActionRow(title: "Settings…", systemImage: "gearshape", shortcut: "⌘ ,") {}
             MenuActionRow(title: "About GitHubBar", systemImage: "info.circle") {
@@ -76,16 +89,35 @@ struct PopoverView: View {
     }
 
     private var updatedLabel: String {
+        switch appModel.state.accountConnection {
+        case .notChecked, .checking:
+            return "Checking GitHub CLI…"
+        case .connectionRequired:
+            return "Account connection required"
+        case .selectionRequired:
+            return "Choose monitored account"
+        case .connected:
+            break
+        }
         if appModel.state.isRefreshing { return "Refreshing…" }
         guard let lastUpdatedAt = appModel.state.lastUpdatedAt else { return "Ready" }
         return "Updated \(lastUpdatedAt.formatted(.relative(presentation: .named)))"
     }
 
     private var accountLabel: String {
-        if case let .connected(login, _) = appModel.state.accountConnection {
+        switch appModel.state.accountConnection {
+        case let .connected(login, _):
             return "@\(login) ›"
+        case .selectionRequired:
+            return "GitHub.com ›"
+        case .notChecked, .checking, .connectionRequired:
+            return "GitHub CLI ›"
         }
-        return "Not connected"
+    }
+
+    private var isConnected: Bool {
+        if case .connected = appModel.state.accountConnection { return true }
+        return false
     }
 }
 
@@ -99,4 +131,30 @@ private struct VisualEffectBackground: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
+private struct AccessCoverageBanner: View {
+    let accessCoverage: AccessCoverage
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+                .foregroundStyle(.yellow)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Incomplete access")
+                    .font(.system(size: 10.5, weight: .semibold))
+                Text(accessCoverage.summary ?? "Some organizations or repositories may not be visible.")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(9)
+        .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 7))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7).stroke(.white.opacity(0.12))
+        }
+        .padding(.top, 7)
+        .accessibilityElement(children: .combine)
+    }
 }
