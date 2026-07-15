@@ -12,6 +12,7 @@ enum UpdatePresentation: Equatable {
 protocol UpdateControlling: AnyObject {
     var presentation: UpdatePresentation { get }
     var canCheckForUpdates: Bool { get }
+    var onStateChange: ((UpdatePresentation, Bool) -> Void)? { get set }
     func checkForUpdates()
 }
 
@@ -21,6 +22,7 @@ final class DisabledUpdateController: UpdateControlling {
         message: "Automatic updates are disabled in this validation build."
     )
     let canCheckForUpdates = false
+    var onStateChange: ((UpdatePresentation, Bool) -> Void)?
 
     func checkForUpdates() {}
 }
@@ -36,6 +38,10 @@ final class UpdateModel {
         self.controller = controller
         presentation = controller.presentation
         canCheckForUpdates = controller.canCheckForUpdates
+        controller.onStateChange = { [weak self] presentation, canCheckForUpdates in
+            self?.presentation = presentation
+            self?.canCheckForUpdates = canCheckForUpdates
+        }
     }
 
     func checkForUpdates() {
@@ -43,5 +49,16 @@ final class UpdateModel {
         controller.checkForUpdates()
         presentation = controller.presentation
         canCheckForUpdates = controller.canCheckForUpdates
+    }
+}
+
+@MainActor
+enum UpdateControllerFactory {
+    static func make() -> any UpdateControlling {
+        #if GITHUBBAR_STABLE
+        SparkleUpdateController()
+        #else
+        DisabledUpdateController()
+        #endif
     }
 }

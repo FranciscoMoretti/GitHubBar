@@ -28,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let model = AppModel(engine: engine)
         let settingsWindowController = SettingsWindowController(
             appModel: model,
-            updateController: DisabledUpdateController()
+            updateController: UpdateControllerFactory.make()
         )
         let actions = AppActions(
             openSettings: { [weak settingsWindowController] in settingsWindowController?.show() },

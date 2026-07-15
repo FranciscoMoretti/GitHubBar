@@ -83,6 +83,9 @@ plutil -replace CFBundleDisplayName -string GitHubBar "$app_path/Contents/Info.p
 plutil -replace CFBundleShortVersionString -string "$version" "$app_path/Contents/Info.plist"
 plutil -replace CFBundleVersion -string "$build_number" "$app_path/Contents/Info.plist"
 plutil -replace LSMinimumSystemVersion -string "$deployment_target" "$app_path/Contents/Info.plist"
+plutil -remove SUEnableAutomaticChecks "$app_path/Contents/Info.plist"
+plutil -remove SUFeedURL "$app_path/Contents/Info.plist"
+plutil -remove SUPublicEDKey "$app_path/Contents/Info.plist"
 
 codesign --force --deep --sign - "$app_path"
 codesign --verify --deep --strict --verbose=2 "$app_path"

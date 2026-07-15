@@ -5,9 +5,17 @@ options:
     macOS: "14.0"
   createIntermediateGroups: true
 
+configs:
+  Debug: debug
+  Release: release
+  Stable: release
+
 packages:
   GitHubBarCore:
     path: Packages/GitHubBarCore
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.9.4
 
 settings:
   base:
@@ -26,6 +34,8 @@ targets:
           - Resources/Info.plist
     dependencies:
       - package: GitHubBarCore
+      - package: Sparkle
+        product: Sparkle
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.franciscomoretti.GitHubBar
@@ -33,8 +43,17 @@ targets:
         INFOPLIST_FILE: GitHubBar/Resources/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: GitHubBar/Resources/GitHubBar.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 0.1.0
+        GITHUBBAR_SPARKLE_FEED_URL: https://github.com/FranciscoMoretti/githubbar/releases/latest/download/appcast.xml
+        GITHUBBAR_SPARKLE_PUBLIC_KEY: ""
+      configs:
+        Stable:
+          CODE_SIGN_STYLE: Manual
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) GITHUBBAR_STABLE"
+          OTHER_CODE_SIGN_FLAGS: "--timestamp"
   GitHubBarTests:
     type: bundle.unit-test
     platform: macOS
@@ -55,4 +74,4 @@ schemes:
     run:
       config: Debug
     archive:
-      config: Release
+      config: Stable

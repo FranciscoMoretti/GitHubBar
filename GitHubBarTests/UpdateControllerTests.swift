@@ -12,4 +12,8 @@ final class UpdateControllerTests: XCTestCase {
             .disabled(message: "Automatic updates are disabled in this validation build.")
         )
     }
+
+    func testValidationFactoryCannotInitializeSparkle() {
+        XCTAssertTrue(UpdateControllerFactory.make() is DisabledUpdateController)
+    }
 }

@@ -26,5 +26,11 @@
 	<string>Copyright © 2026 Francisco Moretti</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>$(GITHUBBAR_SPARKLE_FEED_URL)</string>
+	<key>SUPublicEDKey</key>
+	<string>$(GITHUBBAR_SPARKLE_PUBLIC_KEY)</string>
 </dict>
 </plist>

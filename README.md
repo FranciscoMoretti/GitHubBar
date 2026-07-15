@@ -35,3 +35,5 @@ GITHUBBAR_VERSION=0.1.0 scripts/package-validation.sh
 ```
 
 The ZIP and SHA-256 file are written to `dist/`. Validation builds deliberately have automatic updates disabled and are not notarized. Installation, Gatekeeper, privacy, verification, and prerelease publishing steps are documented in [docs/releases/validation-release.md](docs/releases/validation-release.md).
+
+Trusted Developer ID, notarization, stapling, and Sparkle releases use the fail-closed `scripts/package-stable.sh` pipeline. Maintainer-owned credentials, protected workflow configuration, update-key rotation, rollback, revocation, and recovery are documented in [docs/releases/stable-release-runbook.md](docs/releases/stable-release-runbook.md).
