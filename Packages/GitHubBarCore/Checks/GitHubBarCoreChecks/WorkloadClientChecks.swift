@@ -25,6 +25,19 @@ enum WorkloadClientChecks {
         check(snapshot.waitingForReview.first?.reviewers.count == 4, "Review roster combines requests, submitted reviews, and later pages", failures: &failures)
         check(snapshot.availableRepositories.map(\.id) == ["REPO-1", "REPO-2"], "Accessible Repository catalog is independent of active PRs", failures: &failures)
 
+        let largeRosterResult = await GraphQLGitHubWorkloadClient(
+            transport: WorkloadFixtureTransport(usesLargeRoster: true)
+        ).reconcile(account: account, repositoryScope: .all, previousSnapshot: nil)
+        if case let .complete(largeRosterSnapshot, _) = largeRosterResult {
+            check(
+                largeRosterSnapshot.waitingForReview.first?.reviewers.count == 101,
+                "Review rosters paginate beyond 100 entries without truncation",
+                failures: &failures
+            )
+        } else {
+            failures.append("FAILED: Review rosters above 100 entries reconcile")
+        }
+
         let selectedTransport = WorkloadFixtureTransport()
         let selectedClient = GraphQLGitHubWorkloadClient(transport: selectedTransport)
         _ = await selectedClient.reconcile(
@@ -71,6 +84,11 @@ private struct RateLimitedFixtureTransport: GitHubTransport {
 
 private actor WorkloadFixtureTransport: GitHubTransport {
     private var recordedSearchQueries: [String] = []
+    private let usesLargeRoster: Bool
+
+    init(usesLargeRoster: Bool = false) {
+        self.usesLargeRoster = usesLargeRoster
+    }
 
     func searchQueries() -> [String] { recordedSearchQueries }
 
@@ -98,10 +116,14 @@ private actor WorkloadFixtureTransport: GitHubTransport {
                 response = searchResponse(ids: ["PR-3"])
             }
         case "HydratePullRequests":
-            response = Self.hydrationResponse.replacingOccurrences(
-                of: #""hasNextPage":false,"endCursor":null"#,
-                with: #""hasNextPage":true,"endCursor":"next""#
-            )
+            if usesLargeRoster {
+                response = Self.largeRosterHydrationResponse
+            } else {
+                response = Self.hydrationResponse.replacingOccurrences(
+                    of: #""hasNextPage":false,"endCursor":null"#,
+                    with: #""hasNextPage":true,"endCursor":"next""#
+                )
+            }
         case "PullRequestRosterPage":
             response = #"{"data":{"node":{"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"User","login":"dave","avatarUrl":null}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}},"rateLimit":{"cost":1,"remaining":4995,"resetAt":"2026-07-15T20:00:00Z"}}}"#
         default:
@@ -117,6 +139,13 @@ private actor WorkloadFixtureTransport: GitHubTransport {
     }
 
     private static let hydrationResponse = #"{"data":{"nodes":[{"id":"PR-1","number":1,"title":"Direct review","url":"https://github.com/alaro-ai/app/pull/1","isDraft":false,"state":"OPEN","updatedAt":"2026-07-15T12:00:00Z","author":{"login":"alice"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"User","login":"FranciscoMoretti","avatarUrl":null}},{"requestedReviewer":{"__typename":"User","login":"alice","avatarUrl":null}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[{"author":{"login":"bob","avatarUrl":null}}],"pageInfo":{"hasNextPage":false,"endCursor":null}}},{"id":"PR-2","number":2,"title":"Team review","url":"https://github.com/alaro-ai/app/pull/2","isDraft":false,"state":"OPEN","updatedAt":"2026-07-15T13:00:00Z","author":{"login":"carol"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"Team","name":"devs","slug":"devs","avatarUrl":null,"organization":{"login":"alaro-ai"}}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}},{"id":"PR-3","number":3,"title":"My draft","url":"https://github.com/alaro-ai/app/pull/3","isDraft":true,"state":"OPEN","updatedAt":"2026-07-15T14:00:00Z","author":{"login":"FranciscoMoretti"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"User","login":"alice","avatarUrl":null}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}],"rateLimit":{"cost":1,"remaining":4996,"resetAt":"2026-07-15T20:00:00Z"}}}"#
+
+    private static var largeRosterHydrationResponse: String {
+        let reviewers = (["FranciscoMoretti"] + (1..<100).map { "reviewer-\($0)" })
+            .map { #"{"requestedReviewer":{"__typename":"User","login":"\#($0)","avatarUrl":null}}"# }
+            .joined(separator: ",")
+        return #"{"data":{"nodes":[{"id":"PR-1","number":1,"title":"Large roster","url":"https://github.com/alaro-ai/app/pull/1","isDraft":false,"state":"OPEN","updatedAt":"2026-07-15T12:00:00Z","author":{"login":"alice"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[\#(reviewers)],"pageInfo":{"hasNextPage":true,"endCursor":"next"}},"reviews":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}],"rateLimit":{"cost":1,"remaining":4996,"resetAt":"2026-07-15T20:00:00Z"}}}"#
+    }
 
     private enum FixtureError: Error {
         case unexpectedOperation

@@ -18,7 +18,7 @@ struct PopoverView: View {
             if isConnected {
                 RepositoryScopeControl(appModel: appModel)
                 ScrollView {
-                    VStack(spacing: 0) {
+                    LazyVStack(spacing: 0) {
                         if isInitialLoading {
                             InitialWorkloadLoadingView()
                         } else if let banner = RefreshHealthBanner.Model(state: appModel.state) {

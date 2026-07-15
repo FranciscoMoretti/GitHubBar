@@ -44,6 +44,7 @@ struct RepositoryScopeControl: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusable(true)
         .padding(.horizontal, style == .popover ? 18 : 0)
         .frame(height: style == .popover ? 34 : 40)
         .accessibilityLabel("Choose repositories. Current selection: \(scopeLabel)")
@@ -232,6 +233,7 @@ private struct RepositoryPicker: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusable(true)
         .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
         .accessibilityLabel("\(title), \(isSelected ? "selected" : "not selected")")
     }

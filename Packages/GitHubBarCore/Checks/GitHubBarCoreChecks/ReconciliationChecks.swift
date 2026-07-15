@@ -14,6 +14,7 @@ enum ReconciliationChecks {
         failures.append(contentsOf: await checkPopoverOpenRefresh())
         failures.append(contentsOf: checkAdaptivePolicy())
         failures.append(contentsOf: await checkLargeWorkload())
+        failures.append(contentsOf: await checkTargetScaleGrowth())
         return failures
     }
 
@@ -130,6 +131,24 @@ enum ReconciliationChecks {
         var failures: [String] = []
         check(state.authoredPullRequests.count == 500, "A 500 Pull Request fixture reconciles completely", failures: &failures)
         check(duration < .seconds(10), "A 500 Pull Request fixture reconciles in under 10 seconds", failures: &failures)
+        return failures
+    }
+
+    private static func checkTargetScaleGrowth() async -> [String] {
+        let originalIDs = (0..<500).map { "ACTIVE-\($0)" }
+        let newIDs = (0..<100).map { "NEW-\($0)" }
+        let client = ScriptedWorkloadClient(results: [
+            .complete(snapshot(ids: originalIDs), .empty),
+            .complete(snapshot(ids: newIDs + originalIDs), .empty),
+        ])
+        let engine = makeEngine(client: client)
+        await engine.send(.launch)
+        await engine.send(.manualRefresh)
+        let state = await latestState(from: engine)
+
+        var failures: [String] = []
+        check(state.authoredPullRequests.count == 600, "A 500-PR workload accepts 100 newly relevant Pull Requests", failures: &failures)
+        check(Set(state.authoredPullRequests.prefix(100).map(\.id)) == Set(newIDs), "Newly relevant Pull Requests project without loss", failures: &failures)
         return failures
     }
 

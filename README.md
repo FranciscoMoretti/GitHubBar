@@ -25,3 +25,13 @@ scripts/check.sh
 ```
 
 The check script builds the strict-concurrency core package, exercises its public seams, and typechecks the AppKit/SwiftUI shell. The normal XCTest suite is also available from a full Xcode installation.
+
+## Validation release
+
+Create the universal, ad-hoc-signed validation artifact with:
+
+```sh
+GITHUBBAR_VERSION=0.1.0 scripts/package-validation.sh
+```
+
+The ZIP and SHA-256 file are written to `dist/`. Validation builds deliberately have automatic updates disabled and are not notarized. Installation, Gatekeeper, privacy, verification, and prerelease publishing steps are documented in [docs/releases/validation-release.md](docs/releases/validation-release.md).

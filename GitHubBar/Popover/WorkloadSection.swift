@@ -8,10 +8,11 @@ struct WorkloadSection: View {
     let showsRepository: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        LazyVStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
                 Text(title)
                     .font(.system(size: 13, weight: .semibold))
+                    .accessibilityAddTraits(.isHeader)
                 Spacer()
                 Text(pullRequests.count.formatted())
                     .font(.system(size: 9.5))

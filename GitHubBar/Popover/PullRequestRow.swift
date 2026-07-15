@@ -31,6 +31,7 @@ struct PullRequestRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusable(true)
         .contextMenu {
             Button("Copy Link") {
                 NSPasteboard.general.clearContents()
@@ -38,6 +39,7 @@ struct PullRequestRow: View {
             }
         }
         .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint("Opens this pull request on GitHub")
     }
 
     private var pullRequestStatus: some View {
