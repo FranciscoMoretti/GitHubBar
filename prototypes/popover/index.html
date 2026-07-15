@@ -1,0 +1,1764 @@
+<!doctype html>
+<!-- Four GitHubBar popover variants, switchable via ?variant=, on a standalone throwaway prototype route. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GitHubBar Popover Prototype</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --desktop-top: #1e4860;
+      --desktop-bottom: #08151c;
+      --panel: rgba(25, 27, 30, 0.965);
+      --panel-soft: #222529;
+      --panel-raised: #292d31;
+      --line: rgba(255, 255, 255, 0.105);
+      --line-strong: rgba(255, 255, 255, 0.18);
+      --text: #f4f5f6;
+      --muted: #9ca2a8;
+      --dim: #71777d;
+      --accent: #63c6d5;
+      --accent-soft: rgba(99, 198, 213, 0.14);
+      --danger: #ff9e8e;
+      --warning: #f5c76a;
+      --success: #70d39a;
+      --shadow: 0 28px 80px rgba(0, 0, 0, 0.55), 0 6px 18px rgba(0, 0, 0, 0.32);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-width: 840px;
+      min-height: 900px;
+      margin: 0;
+      overflow: hidden;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 22% 12%, rgba(97, 181, 196, 0.28), transparent 28%),
+        radial-gradient(circle at 75% 76%, rgba(57, 109, 126, 0.42), transparent 34%),
+        linear-gradient(150deg, var(--desktop-top), var(--desktop-bottom) 66%);
+    }
+
+    body::after {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      content: "";
+      opacity: 0.18;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.18'/%3E%3C/svg%3E");
+      mix-blend-mode: soft-light;
+    }
+
+    button, a { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, a:focus-visible {
+      outline: 2px solid rgba(126, 213, 226, .9);
+      outline-offset: 2px;
+    }
+
+    .menu-bar {
+      position: fixed;
+      z-index: 10;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      color: rgba(255,255,255,.94);
+      background: rgba(12, 20, 25, 0.58);
+      border-bottom: 1px solid rgba(255,255,255,.12);
+      backdrop-filter: blur(26px) saturate(1.3);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .menu-left, .menu-right { display: flex; align-items: center; gap: 16px; }
+    .menu-right { gap: 14px; color: rgba(255,255,255,.82); }
+
+    .status-trigger {
+      position: relative;
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      margin: 0 -5px;
+      padding: 0;
+      border: 0;
+      border-radius: 6px;
+      background: rgba(255,255,255,.15);
+      overflow: visible;
+      cursor: default;
+    }
+
+    .mark {
+      width: 16px;
+      height: 16px;
+      display: grid;
+      place-items: center;
+      color: rgba(255,255,255,.94);
+    }
+
+    .mark svg { width: 15px; height: 15px; display: block; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+
+    .status-count {
+      position: absolute;
+      z-index: 2;
+      right: -2px;
+      bottom: -2px;
+      min-width: 11px;
+      height: 11px;
+      display: grid;
+      place-items: center;
+      padding: 0 2px;
+      border: 1px solid rgba(15,27,36,.8);
+      border-radius: 6px;
+      color: #14202a;
+      background: #f4f5f6;
+      box-shadow: 0 1px 2px rgba(0,0,0,.3);
+      font-size: 7px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .status-trigger[data-count="0"] .status-count { display: none; }
+
+    .desktop-note {
+      position: fixed;
+      top: 64px;
+      left: 42px;
+      width: 250px;
+      color: rgba(255,255,255,.58);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .desktop-note strong {
+      display: block;
+      margin-bottom: 6px;
+      color: rgba(255,255,255,.84);
+      font-size: 15px;
+    }
+
+    .stage {
+      position: fixed;
+      z-index: 2;
+      top: 39px;
+      left: 50%;
+      transform: translateX(-12%);
+    }
+
+    .popover {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 15px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(36px) saturate(1.2);
+      transform-origin: 70% 0;
+      animation: enter 180ms cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .popover::before {
+      position: absolute;
+      z-index: 3;
+      top: -7px;
+      right: 82px;
+      width: 13px;
+      height: 13px;
+      content: "";
+      background: var(--panel);
+      border-top: 1px solid rgba(255,255,255,.22);
+      border-left: 1px solid rgba(255,255,255,.22);
+      transform: rotate(45deg);
+    }
+
+    @keyframes enter {
+      from { opacity: 0; transform: translateY(-8px) scale(.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .app-header {
+      position: relative;
+      z-index: 4;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 17px 12px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(31,34,37,.88);
+    }
+
+    .app-title {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 750;
+      letter-spacing: -.025em;
+    }
+
+    .account-line {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .header-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .state-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0 3px rgba(112,211,154,.12);
+    }
+
+    .state-dot.loading { background: var(--accent); animation: pulse 1.15s ease-in-out infinite; }
+    .state-dot.stale { background: var(--warning); box-shadow: 0 0 0 3px rgba(245,199,106,.12); }
+    .state-dot.error { background: var(--danger); box-shadow: 0 0 0 3px rgba(255,158,142,.12); }
+
+    @keyframes pulse { 50% { opacity: .35; transform: scale(.75); } }
+
+    .state-controls {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(12,14,16,.32);
+    }
+
+    .state-controls span {
+      margin-right: auto;
+      color: var(--dim);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .state-button {
+      padding: 4px 7px;
+      border: 0;
+      border-radius: 6px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      font-size: 10px;
+    }
+
+    .state-button:hover { color: var(--text); background: rgba(255,255,255,.07); }
+    .state-button.active { color: var(--text); background: rgba(255,255,255,.11); }
+
+    .repo-filter-strip {
+      position: relative;
+      z-index: 18;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(17,19,21,.58);
+    }
+
+    .repo-filter-label {
+      color: var(--dim);
+      font-size: 9px;
+      font-weight: 740;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+
+    .repo-filter-button {
+      min-width: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto;
+      padding: 5px 8px;
+      border: 1px solid var(--line-strong);
+      border-radius: 7px;
+      color: #dfe2e4;
+      background: rgba(255,255,255,.055);
+      cursor: pointer;
+      font-size: 10px;
+    }
+
+    .repo-filter-button:hover { background: rgba(255,255,255,.09); }
+    .repo-filter-button strong { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .repo-filter-button .persisted { color: var(--success); font-size: 8px; }
+
+    .repo-filter-menu {
+      position: absolute;
+      top: 38px;
+      right: 11px;
+      width: 294px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 11px;
+      background: rgba(36,39,43,.985);
+      box-shadow: 0 18px 45px rgba(0,0,0,.56);
+    }
+
+    .repo-filter-menu[hidden] { display: none; }
+    .filter-menu-heading { padding: 10px 11px 8px; border-bottom: 1px solid var(--line); }
+    .filter-menu-heading strong { display: block; font-size: 11px; }
+    .filter-menu-heading span { display: block; margin-top: 2px; color: var(--dim); font-size: 9px; }
+
+    .filter-all,
+    .filter-repo {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 18px minmax(0,1fr) auto;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 11px;
+      border: 0;
+      border-bottom: 1px solid rgba(255,255,255,.052);
+      color: #e8eaec;
+      background: transparent;
+      cursor: pointer;
+      font-size: 10px;
+      text-align: left;
+    }
+
+    .filter-all:hover, .filter-repo:hover { background: rgba(255,255,255,.055); }
+    .filter-check {
+      width: 15px;
+      height: 15px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line-strong);
+      border-radius: 4px;
+      color: transparent;
+      font-size: 9px;
+    }
+
+    .filter-all.active .filter-check,
+    .filter-repo.active .filter-check { color: #102026; border-color: var(--accent); background: var(--accent); }
+    .filter-repo-name { overflow: hidden; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; text-overflow: ellipsis; white-space: nowrap; }
+    .filter-repo-count { color: var(--dim); font-size: 9px; }
+    .filter-menu-footer { display: flex; align-items: center; padding: 8px 10px; color: var(--dim); font-size: 9px; }
+    .filter-menu-footer button { margin-left: auto; }
+
+    .state-banner {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      color: #f8e1ad;
+      background: rgba(121, 84, 18, .32);
+      border-bottom: 1px solid rgba(245,199,106,.24);
+      font-size: 11px;
+    }
+
+    .state-banner.error {
+      color: #ffd3cc;
+      background: rgba(124, 45, 38, .34);
+      border-color: rgba(255,158,142,.23);
+    }
+
+    body[data-state="stale"] .state-banner.stale,
+    body[data-state="error"] .state-banner.error { display: flex; }
+
+    .refresh-spinner {
+      display: none;
+      width: 11px;
+      height: 11px;
+      border: 1.5px solid rgba(255,255,255,.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+
+    body[data-state="loading"] .refresh-spinner { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .section {
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px 7px;
+      border: 0;
+      color: var(--text);
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .section-header:hover { background: rgba(255,255,255,.025); }
+    .section-title { font-size: 12px; font-weight: 720; letter-spacing: -.01em; }
+    .section-count {
+      min-width: 23px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(255,255,255,.07);
+      font-size: 10px;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+
+    .section-summary { margin-left: auto; color: var(--dim); font-size: 10px; }
+    .chevron { color: var(--dim); font-size: 10px; transition: transform 150ms ease; }
+    .section.collapsed .chevron { transform: rotate(-90deg); }
+    .section.collapsed .section-body { display: none; }
+
+    .pr-row {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      min-height: 51px;
+      padding: 8px 14px 8px 16px;
+      border-top: 1px solid rgba(255,255,255,.055);
+      cursor: pointer;
+      transition: background 120ms ease;
+    }
+
+    .pr-row:hover, .pr-row.selected { background: rgba(255,255,255,.052); }
+    .pr-row.selected::before {
+      position: absolute;
+      top: 8px;
+      bottom: 8px;
+      left: 0;
+      width: 3px;
+      content: "";
+      border-radius: 0 3px 3px 0;
+      background: var(--accent);
+    }
+
+    .pr-main { min-width: 0; }
+    .pr-repo {
+      color: var(--muted);
+      font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+      font-size: 9.5px;
+      letter-spacing: -.015em;
+    }
+
+    .pr-title {
+      overflow: hidden;
+      margin-top: 3px;
+      color: #f3f4f5;
+      font-size: 12px;
+      font-weight: 575;
+      letter-spacing: -.012em;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .pr-meta { margin-top: 4px; color: var(--dim); font-size: 9.5px; }
+    .pr-number { color: var(--muted); }
+
+    .roster {
+      align-self: center;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      min-width: 92px;
+      padding-left: 8px;
+    }
+
+    .avatar {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      margin-left: -6px;
+      overflow: hidden;
+      border: 2px solid #24272a;
+      border-radius: 50%;
+      color: white;
+      background: var(--avatar, #59636f);
+      box-shadow: 0 1px 4px rgba(0,0,0,.35);
+      font-size: 8.5px;
+      font-weight: 800;
+      letter-spacing: -.02em;
+    }
+
+    .avatar:first-child { margin-left: 0; }
+    .avatar.team { border-radius: 7px; background: #44546b; }
+    .avatar.more { background: #3a3e43; color: #c4c8cc; }
+
+    .row-actions {
+      grid-column: 1 / -1;
+      display: none;
+      align-items: center;
+      gap: 5px;
+      margin: 2px 0 2px;
+    }
+
+    .pr-row.selected .row-actions { display: flex; }
+
+    .small-action {
+      padding: 5px 8px;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      color: #dfe2e4;
+      background: rgba(255,255,255,.055);
+      cursor: pointer;
+      font-size: 9px;
+      text-decoration: none;
+    }
+
+    .small-action:hover { border-color: rgba(255,255,255,.28); background: rgba(255,255,255,.1); }
+    .small-action.primary { border-color: rgba(99,198,213,.38); background: var(--accent-soft); color: #9ee4ee; }
+    .small-action.danger:hover { color: #ffd2ca; border-color: rgba(255,158,142,.35); }
+
+    .show-more {
+      width: 100%;
+      padding: 8px 14px;
+      border: 0;
+      border-top: 1px solid rgba(255,255,255,.055);
+      color: var(--muted);
+      background: rgba(255,255,255,.018);
+      cursor: pointer;
+      font-size: 10px;
+      text-align: center;
+    }
+
+    .show-more:hover { color: var(--text); background: rgba(255,255,255,.045); }
+
+    .app-footer {
+      display: grid;
+      gap: 1px;
+      padding: 6px;
+      background: rgba(13,15,17,.38);
+    }
+
+    .footer-action {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 7px 9px;
+      border: 0;
+      border-radius: 7px;
+      color: #d9dcde;
+      background: transparent;
+      cursor: pointer;
+      font-size: 11px;
+      text-align: left;
+    }
+
+    .footer-action:hover { background: rgba(255,255,255,.065); }
+    .footer-key { margin-left: auto; color: var(--dim); font-size: 9px; }
+
+    /* Variant A: all three lists are visible as a dense native stack. */
+    .variant-a { width: 476px; height: min(812px, calc(100vh - 106px)); display: flex; flex-direction: column; }
+    .variant-a .scroll-area { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; }
+    .variant-a .drafts .pr-row { opacity: .72; }
+
+    /* Variant B: review-first tabs and a calmer, editorial queue. */
+    .variant-b { width: 535px; height: min(795px, calc(100vh - 106px)); display: flex; flex-direction: column; }
+    .variant-b .app-header { padding: 16px 18px; }
+    .review-hero {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      padding: 18px;
+      background:
+        linear-gradient(120deg, rgba(99,198,213,.15), transparent 55%),
+        rgba(255,255,255,.015);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .hero-kicker { color: #9bdde6; font-size: 10px; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
+    .hero-count { margin-top: 4px; font-size: 28px; font-weight: 760; letter-spacing: -.055em; }
+    .hero-copy { margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .hero-oldest { align-self: center; color: var(--muted); font-size: 10px; text-align: right; line-height: 1.5; }
+    .hero-oldest strong { display: block; color: var(--text); font-size: 13px; }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      margin: 10px 12px 5px;
+      padding: 3px;
+      border-radius: 9px;
+      background: rgba(255,255,255,.055);
+    }
+
+    .tab {
+      padding: 7px 8px;
+      border: 0;
+      border-radius: 7px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      font-size: 10px;
+    }
+
+    .tab.active { color: var(--text); background: #34383d; box-shadow: 0 1px 4px rgba(0,0,0,.28); }
+    .tab b { margin-left: 3px; color: inherit; font-variant-numeric: tabular-nums; }
+    .variant-b .tab-panel { flex: 1; min-height: 0; overflow: auto; padding: 4px 10px 10px; scrollbar-width: thin; }
+    .variant-b .pr-row { margin-top: 7px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.022); }
+    .variant-b .pr-row:hover, .variant-b .pr-row.selected { border-color: rgba(255,255,255,.17); background: rgba(255,255,255,.05); }
+    .variant-b .pr-row.selected::before { top: 12px; bottom: 12px; }
+    .variant-b .pr-title { margin-top: 5px; font-size: 13px; }
+    .variant-b .pr-meta { margin-top: 6px; }
+    .queue-note { padding: 8px 4px 2px; color: var(--dim); font-size: 10px; }
+
+    /* Variant C: a compact navigation rail and focused working list. */
+    .variant-c { width: 620px; height: min(744px, calc(100vh - 106px)); display: flex; flex-direction: column; }
+    .variant-c .app-header { height: 59px; }
+    .workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: 155px minmax(0,1fr); }
+    .rail {
+      display: flex;
+      flex-direction: column;
+      padding: 11px 8px;
+      background: rgba(12,14,16,.47);
+      border-right: 1px solid var(--line);
+    }
+
+    .rail-label { padding: 5px 9px 7px; color: var(--dim); font-size: 9px; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
+    .rail-item {
+      display: grid;
+      grid-template-columns: 20px minmax(0,1fr) auto;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 8px;
+      border: 0;
+      border-radius: 7px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      font-size: 10.5px;
+      text-align: left;
+    }
+
+    .rail-item:hover { background: rgba(255,255,255,.045); color: var(--text); }
+    .rail-item.active { background: rgba(99,198,213,.12); color: #b4e8ef; }
+    .rail-icon { text-align: center; opacity: .8; }
+    .rail-count { color: var(--dim); font-size: 9px; font-variant-numeric: tabular-nums; }
+    .rail-item.active .rail-count { color: #86d1dc; }
+    .rail-divider { height: 1px; margin: 10px 8px; background: var(--line); }
+    .rail-spacer { flex: 1; }
+    .coverage { margin: 7px; padding: 9px; border: 1px solid var(--line); border-radius: 8px; color: var(--dim); font-size: 9px; line-height: 1.45; }
+    .coverage strong { display: block; margin-bottom: 2px; color: var(--muted); font-size: 10px; }
+
+    .focus-pane { min-width: 0; display: flex; flex-direction: column; }
+    .focus-heading { display: flex; align-items: center; gap: 8px; padding: 13px 15px 10px; border-bottom: 1px solid var(--line); }
+    .focus-heading h2 { margin: 0; font-size: 13px; letter-spacing: -.02em; }
+    .focus-heading p { margin: 2px 0 0; color: var(--dim); font-size: 9.5px; }
+    .focus-total { margin-left: auto; color: var(--muted); font-size: 10px; }
+    .focus-list { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; }
+    .variant-c .pr-row { min-height: 58px; padding: 10px 14px; }
+    .variant-c .pr-title { font-size: 12.5px; }
+    .variant-c .roster { min-width: 106px; }
+    .focus-bottom { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-top: 1px solid var(--line); color: var(--dim); font-size: 9.5px; }
+    .focus-bottom button { margin-left: auto; }
+
+    /* Variant D: GitHubBar content inside CodexBar's narrow, flat native-menu skeleton. */
+    .variant-d {
+      width: 364px;
+      max-height: min(822px, calc(100vh - 106px));
+      display: flex;
+      flex-direction: column;
+      color: #e7e8e9;
+      background: rgba(27, 30, 33, .985);
+      border-color: rgba(255,255,255,.3);
+      border-radius: 11px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.58), 0 4px 14px rgba(0,0,0,.42);
+    }
+
+    .variant-d.has-startup-state { min-height: 470px; }
+
+    .variant-d.popover::before { right: 38px; background: #1b1e21; }
+
+    .codexbar-header {
+      display: grid;
+      grid-template-columns: minmax(0,1fr) minmax(0,auto);
+      gap: 12px;
+      padding: 13px 18px 9px;
+    }
+
+    .codexbar-title { margin: 0; color: #f0f1f2; font-size: 14px; font-weight: 720; letter-spacing: -.02em; }
+    .codexbar-updated { margin-top: 3px; color: #8f959b; font-size: 10px; }
+    .codexbar-account { min-width: 0; color: #a7acb1; font-size: 10.5px; text-align: right; }
+    .codexbar-account strong { display: block; max-width: 190px; overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+    .codexbar-account span { display: block; margin-top: 3px; color: #858b91; font-size: 9.5px; }
+    .codexbar-updated.loading { color: #83d3df; }
+    .codexbar-updated.stale { color: #e7c875; }
+    .codexbar-updated.error { color: #f2a092; }
+    .codexbar-updated.partial { color: #e7c875; }
+    .codexbar-updated.initial { color: #83d3df; }
+    .codexbar-updated.cli-missing,
+    .codexbar-updated.cli-signin { color: #f2a092; }
+    .codexbar-updated.confirm-account { color: #e7c875; }
+
+    .codexbar-rule { height: 1px; margin: 0 18px; background: rgba(255,255,255,.14); }
+    .codexbar-scroll { flex: 1; min-height: 0; overflow: auto; padding: 4px 18px 2px; scrollbar-width: thin; }
+    .codexbar-state-banner {
+      display: grid;
+      grid-template-columns: 16px minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 8px;
+      margin: 7px 0 2px;
+      padding: 9px 10px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 7px;
+      color: #aeb3b7;
+      background: rgba(255,255,255,.035);
+      font-size: 9.5px;
+      line-height: 1.4;
+    }
+    .codexbar-state-banner strong { display: block; margin-bottom: 2px; color: #e1e3e4; font-size: 10.5px; }
+    .codexbar-state-banner .codexbar-menu-icon { margin-top: 1px; }
+    .codexbar-state-banner.loading .codexbar-menu-icon { color: #83d3df; }
+    .codexbar-state-banner.stale .codexbar-menu-icon,
+    .codexbar-state-banner.partial .codexbar-menu-icon { color: #e7c875; }
+    .codexbar-state-banner.error .codexbar-menu-icon { color: #f2a092; }
+    .codexbar-inline-action {
+      align-self: center;
+      padding: 3px 6px;
+      border: 0;
+      border-radius: 4px;
+      color: #d7dadc;
+      background: rgba(255,255,255,.08);
+      cursor: pointer;
+      font-size: 9px;
+      white-space: nowrap;
+    }
+    .codexbar-connection {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 34px 30px 38px;
+      text-align: center;
+    }
+    .connection-icon {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 13px;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 10px;
+      color: #b8bdc1;
+      background: rgba(255,255,255,.045);
+    }
+    .connection-icon .codexbar-icon { width: 21px; height: 21px; }
+    .codexbar-connection h2 { margin: 0; color: #eff0f1; font-size: 13px; letter-spacing: -.015em; }
+    .codexbar-connection p { max-width: 276px; margin: 7px 0 0; color: #8f959b; font-size: 10px; line-height: 1.5; }
+    .connection-command {
+      width: 100%;
+      margin-top: 14px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 6px;
+      color: #c7cbce;
+      background: rgba(0,0,0,.22);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 9.5px;
+      text-align: left;
+    }
+    .connection-actions { display: flex; gap: 7px; margin-top: 13px; }
+    .connection-action {
+      padding: 6px 9px;
+      border: 1px solid rgba(255,255,255,.13);
+      border-radius: 6px;
+      color: #d9dcde;
+      background: rgba(255,255,255,.055);
+      cursor: pointer;
+      font-size: 10px;
+    }
+    .connection-action.primary { color: #112126; background: #78cbd7; border-color: #78cbd7; font-weight: 650; }
+    .connection-progress {
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255,255,255,.15);
+      border-top-color: #78cbd7;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    .account-choices {
+      width: 100%;
+      display: grid;
+      gap: 6px;
+      margin-top: 14px;
+      text-align: left;
+    }
+    .account-choice {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 15px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 9px;
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 7px;
+      color: #d9dcde;
+      background: rgba(255,255,255,.035);
+      cursor: pointer;
+      text-align: left;
+    }
+    .account-choice:hover { background: rgba(255,255,255,.065); }
+    .account-choice[aria-checked="true"] { border-color: rgba(120,203,215,.42); background: rgba(120,203,215,.09); }
+    .account-radio { width: 12px; height: 12px; border: 1px solid #747b80; border-radius: 50%; }
+    .account-choice[aria-checked="true"] .account-radio { border: 3px solid #78cbd7; background: #17272b; }
+    .account-name { min-width: 0; overflow: hidden; font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+    .account-detail { display: block; margin-top: 2px; color: #81878c; font-size: 8.5px; font-weight: 400; }
+    .account-host { color: #81878c; font-size: 8.5px; }
+    .account-note { margin-top: 10px !important; color: #777d83 !important; font-size: 8.5px !important; }
+    .codexbar-section { padding: 11px 0 10px; border-bottom: 1px solid rgba(255,255,255,.14); }
+    .codexbar-section:last-child { border-bottom: 0; }
+
+    .codexbar-section-heading {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin: 0 0 4px;
+      color: #e9eaeb;
+      font-size: 13px;
+      font-weight: 690;
+      letter-spacing: -.015em;
+    }
+
+    .codexbar-section-heading span { margin-left: auto; color: #8f959b; font-size: 9.5px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+    .codexbar-pr-row {
+      width: calc(100% + 12px);
+      display: grid;
+      grid-template-columns: 20px minmax(0,1fr);
+      align-items: stretch;
+      gap: 7px;
+      margin: 0 -6px;
+      padding: 7px 6px;
+      border: 0;
+      border-radius: 5px;
+      color: inherit;
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .codexbar-pr-row:hover, .codexbar-pr-row:focus-visible { background: rgba(255,255,255,.075); outline: none; }
+    .codexbar-pr-status { position: relative; width: 17px; height: 20px; align-self: center; color: #747a80; }
+    .codexbar-pr-status svg { width: 15px; height: 15px; display: block; fill: none; stroke: currentColor; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round; }
+    .codexbar-status-dot { position: absolute; right: 0; bottom: 1px; width: 6px; height: 6px; border: 1.25px solid #1b1e21; border-radius: 50%; background: #54cd80; box-shadow: 0 0 0 1px rgba(84,205,128,.08); }
+    .codexbar-pr-status.draft { color: #686e74; }
+    .codexbar-pr-status.draft .codexbar-status-dot { border-color: #777d83; background: #1b1e21; box-shadow: none; }
+    .codexbar-pr-copy { min-width: 0; }
+    .codexbar-pr-title { display: block; overflow: hidden; color: #e7e8e9; font-size: 11.5px; font-weight: 570; letter-spacing: -.01em; text-overflow: ellipsis; white-space: nowrap; }
+    .codexbar-pr-info { min-width: 0; display: flex; align-items: center; gap: 7px; margin-top: 3px; }
+    .codexbar-pr-number { color: #9ba0a5; }
+    .codexbar-pr-meta { min-width: 0; display: block; overflow: hidden; color: #777d83; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+    .codexbar-roster { display: flex; flex: 0 0 auto; justify-content: flex-end; margin-left: auto; padding-left: 3px; }
+    .variant-d .avatar { width: 18px; height: 18px; margin-left: -5px; border-width: 1px; border-color: #1b1e21; font-size: 6.5px; box-shadow: 0 1px 3px rgba(0,0,0,.34); }
+    .variant-d .avatar.team { border-radius: 5px; }
+
+    .codexbar-more {
+      width: 100%;
+      padding: 5px 0 0;
+      border: 0;
+      color: #8c9298;
+      background: transparent;
+      cursor: pointer;
+      font-size: 9.5px;
+      text-align: left;
+    }
+
+    .codexbar-more:hover { color: #d4d7d9; }
+
+    .codexbar-menu-block { position: relative; margin: 0 18px; border-top: 1px solid rgba(255,255,255,.14); }
+    .codexbar-menu-block + .codexbar-menu-block { margin-top: 5px; padding-top: 5px; }
+    .codexbar-menu-item {
+      width: calc(100% + 12px);
+      display: grid;
+      grid-template-columns: 16px minmax(0,1fr) auto auto;
+      align-items: center;
+      gap: 7px;
+      min-height: 27px;
+      margin: 0 -6px;
+      padding: 4px 6px;
+      border: 0;
+      border-radius: 5px;
+      color: #e0e2e3;
+      background: transparent;
+      cursor: pointer;
+      font-size: 11.5px;
+      text-align: left;
+    }
+
+    .codexbar-menu-item:hover { background: rgba(255,255,255,.075); }
+    .codexbar-menu-icon { width: 16px; height: 16px; display: grid; place-items: center; color: #a1a6ab; }
+    .codexbar-icon { width: 14px; height: 14px; display: block; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+    .codexbar-menu-value { max-width: 174px; overflow: hidden; color: #898f95; font-size: 9.5px; text-overflow: ellipsis; white-space: nowrap; }
+    .codexbar-menu-key { min-width: 28px; color: #666c72; font-size: 9px; text-align: right; }
+    .codexbar-chevron { width: 8px; height: 12px; color: #d9dcde; }
+    .codexbar-footer { padding: 7px 18px 9px; }
+    .codexbar-footer .codexbar-menu-block { margin-right: 0; margin-left: 0; }
+    .codexbar-scope {
+      z-index: 22;
+      margin: 0 18px;
+      padding: 4px 0;
+      border-top: 0;
+      border-bottom: 1px solid rgba(255,255,255,.14);
+    }
+    .codexbar-scope .repo-filter-menu { top: 33px; right: -6px; bottom: auto; width: 310px; }
+
+    .prototype-switcher {
+      position: fixed;
+      z-index: 100;
+      left: 50%;
+      bottom: 24px;
+      display: grid;
+      grid-template-columns: 36px minmax(190px,auto) 36px;
+      align-items: center;
+      overflow: hidden;
+      color: #f5f6f7;
+      background: rgba(7,9,11,.94);
+      border: 1px solid rgba(255,255,255,.24);
+      border-radius: 999px;
+      box-shadow: 0 14px 38px rgba(0,0,0,.5);
+      backdrop-filter: blur(18px);
+      transform: translateX(-50%);
+    }
+
+    .prototype-switcher button {
+      height: 38px;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .prototype-switcher button:hover { background: rgba(255,255,255,.1); }
+    .variant-label { padding: 0 14px; border-right: 1px solid var(--line); border-left: 1px solid var(--line); font-size: 11px; font-weight: 680; text-align: center; }
+    .variant-label small { margin-left: 4px; color: var(--muted); font-weight: 500; }
+
+    .scenario-switcher {
+      position: fixed;
+      z-index: 100;
+      left: 30px;
+      bottom: 24px;
+      width: 200px;
+      padding: 9px;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 10px;
+      color: #dfe2e4;
+      background: rgba(7,9,11,.92);
+      box-shadow: 0 14px 38px rgba(0,0,0,.38);
+      backdrop-filter: blur(18px);
+    }
+    .scenario-switcher[hidden] { display: none; }
+    .scenario-switcher strong { display: block; margin: 0 2px 7px; color: #8f959b; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+    .scenario-options { display: flex; flex-wrap: wrap; gap: 5px; }
+    .scenario-option {
+      padding: 5px 7px;
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 6px;
+      color: #aeb3b7;
+      background: rgba(255,255,255,.035);
+      cursor: pointer;
+      font-size: 9px;
+    }
+    .scenario-option:hover { color: #e7e9ea; background: rgba(255,255,255,.075); }
+    .scenario-option[aria-pressed="true"] { color: #dff7fa; border-color: rgba(99,198,213,.45); background: rgba(99,198,213,.16); }
+
+    .toast {
+      position: fixed;
+      z-index: 120;
+      right: 28px;
+      bottom: 26px;
+      padding: 10px 13px;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 9px;
+      color: #e8eaec;
+      background: rgba(24,27,30,.96);
+      box-shadow: 0 14px 35px rgba(0,0,0,.42);
+      font-size: 11px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 140ms ease, transform 140ms ease;
+      pointer-events: none;
+    }
+
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .muted-row { display: none !important; }
+
+    @media (max-height: 820px) {
+      body { min-height: 700px; }
+    }
+  </style>
+</head>
+<body data-state="fresh">
+  <header class="menu-bar" aria-label="macOS menu bar mock">
+    <div class="menu-left"><span>●</span><span>Finder</span><span>File</span><span>Edit</span><span>View</span></div>
+    <div class="menu-right">
+      <span>◌</span><span>⌁</span><span>▰</span>
+      <button class="status-trigger" data-count="12" aria-label="GitHubBar, 12 reviews waiting">
+        <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><path d="M6 7v10M18 17v-5a3 3 0 0 0-3-3h-4M14 6l-3 3 3 3"/></svg></span><span class="status-count" id="statusMenuCount">12</span>
+      </button>
+      <span>Tue 19:42</span>
+    </div>
+  </header>
+
+  <aside class="desktop-note">
+    <strong>Throwaway interaction prototype</strong>
+    Use the bottom switcher or ← → keys for variants. The scenario controls exercise connection, refresh, and access states without changing the accepted layout.
+  </aside>
+
+  <main class="stage" id="stage"></main>
+  <nav class="prototype-switcher" aria-label="Prototype variant switcher">
+    <button id="previousVariant" aria-label="Previous variant">←</button>
+    <div class="variant-label" id="variantLabel"></div>
+    <button id="nextVariant" aria-label="Next variant">→</button>
+  </nav>
+  <nav class="scenario-switcher" aria-label="Prototype scenario switcher">
+    <strong>Scenario</strong>
+    <div class="scenario-options">
+      <button class="scenario-option" data-scenario="fresh" aria-pressed="false">Fresh</button>
+      <button class="scenario-option" data-scenario="initial" aria-pressed="false">First load</button>
+      <button class="scenario-option" data-scenario="loading" aria-pressed="false">Refreshing</button>
+      <button class="scenario-option" data-scenario="stale" aria-pressed="false">Cached</button>
+      <button class="scenario-option" data-scenario="error" aria-pressed="false">Failed</button>
+      <button class="scenario-option" data-scenario="partial" aria-pressed="false">Incomplete access</button>
+      <button class="scenario-option" data-scenario="cli-missing" aria-pressed="false">CLI missing</button>
+      <button class="scenario-option" data-scenario="cli-signin" aria-pressed="false">Sign in</button>
+      <button class="scenario-option" data-scenario="confirm-account" aria-pressed="false">Choose account</button>
+    </div>
+  </nav>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    const variants = [
+      { key: 'A', name: 'Dense stack' },
+      { key: 'B', name: 'Review-first tabs' },
+      { key: 'C', name: 'Navigation rail' },
+      { key: 'D', name: 'CodexBar native menu' },
+    ];
+
+    const scenarios = ['fresh', 'initial', 'loading', 'stale', 'error', 'partial', 'cli-missing', 'cli-signin', 'confirm-account'];
+    const dataScenarios = ['fresh', 'loading', 'stale', 'error', 'partial'];
+    let selectedAccount = 'FranciscoMoretti';
+
+    const filterableRepositories = [
+      'acme/work-monorepo',
+      'FranciscoMoretti/chat-js',
+      'FranciscoMoretti/osbe',
+      'openai/codex',
+    ];
+
+    const repositoryTotals = {
+      'acme/work-monorepo': { reviews: 4, mine: 38, drafts: 5 },
+      'FranciscoMoretti/chat-js': { reviews: 2, mine: 41, drafts: 7 },
+      'FranciscoMoretti/osbe': { reviews: 1, mine: 29, drafts: 3 },
+      'openai/codex': { reviews: 3, mine: 0, drafts: 0 },
+    };
+
+    const allRepositoryTotals = { reviews: 12, mine: 487, drafts: 24 };
+    const repositorySelectionKey = 'githubbar-prototype-repository-selection';
+
+    const datasets = {
+      reviews: [
+        { repo: 'acme/work-monorepo', number: 18421, title: 'Stream tool output without blocking the response loop', meta: 'requested 3h ago · by maya-l', reviewers: ['FM', 'AK', 'team:Core'] },
+        { repo: 'openai/codex', number: 9127, title: 'Preserve reasoning parts across provider retries', meta: 'requested 7h ago · by nico', reviewers: ['FM', 'JM'] },
+        { repo: 'better-auth/better-auth', number: 6732, title: 'Add organization-scoped session invalidation', meta: 'requested yesterday · by tessa', reviewers: ['FM', 'team:Auth'] },
+        { repo: 'acme/work-monorepo', number: 408, title: 'Unify attachment previews in compact messages', meta: 'requested yesterday · by alex-p', reviewers: ['FM', 'LP', 'RK'] },
+        { repo: 'tanstack/query', number: 10183, title: 'Avoid redundant observer notification after hydration', meta: 'requested 2d ago · by sara', reviewers: ['FM', 'DK', 'more:2'] },
+      ],
+      mine: [
+        { repo: 'acme/work-monorepo', number: 421, title: 'Virtualize long reasoning traces in the conversation view', meta: 'updated 12m ago · 18 comments', updatedMinutes: 12, reviewers: ['AK', 'JM', 'LP'] },
+        { repo: 'FranciscoMoretti/osbe', number: 237, title: 'Use native tab groups for extension workspace restore', meta: 'updated 31m ago · 4 comments', updatedMinutes: 31, reviewers: [] },
+        { repo: 'FranciscoMoretti/ai-registry', number: 96, title: 'Add capability snapshots to provider history', meta: 'updated 1h ago · 7 comments', updatedMinutes: 60, reviewers: ['RK', 'TS'] },
+        { repo: 'acme/work-monorepo', number: 184, title: 'Index system-design diagrams by decision pattern', meta: 'updated 2h ago · 2 comments', updatedMinutes: 120, reviewers: ['MM'] },
+        { repo: 'FranciscoMoretti/githubbar', number: 14, title: 'Document the first vertical implementation slices', meta: 'updated 5h ago · no comments', updatedMinutes: 300, reviewers: [] },
+      ],
+      drafts: [
+        { repo: 'acme/work-monorepo', number: 426, title: 'Explore grouped tool-call rendering', meta: 'updated 9m ago', updatedMinutes: 9, reviewers: [] },
+        { repo: 'FranciscoMoretti/osbe', number: 241, title: 'Prototype share-sheet capture flow', meta: 'updated yesterday', updatedMinutes: 1440, reviewers: ['LP'] },
+      ],
+    };
+
+    const avatarPalette = ['#5b739d', '#8b5e83', '#4f8173', '#8c704c', '#6f638e', '#507a8d'];
+
+    function loadRepositorySelection() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(repositorySelectionKey));
+        if (saved?.mode === 'selected' && Array.isArray(saved.repositories)) {
+          const repositories = saved.repositories.filter(repo => filterableRepositories.includes(repo));
+          if (repositories.length) return { mode: 'selected', repositories };
+        }
+      } catch (error) {
+        console.warn('Ignoring invalid prototype repository selection', error);
+      }
+      return { mode: 'all', repositories: [] };
+    }
+
+    let repositorySelection = loadRepositorySelection();
+    let filterMenuOpen = false;
+
+    function saveRepositorySelection() {
+      localStorage.setItem(repositorySelectionKey, JSON.stringify(repositorySelection));
+    }
+
+    function selectedRepositoryCounts() {
+      if (repositorySelection.mode === 'all') return { ...allRepositoryTotals };
+      return repositorySelection.repositories.reduce((totals, repository) => {
+        const counts = repositoryTotals[repository] || { reviews: 0, mine: 0, drafts: 0 };
+        totals.reviews += counts.reviews;
+        totals.mine += counts.mine;
+        totals.drafts += counts.drafts;
+        return totals;
+      }, { reviews: 0, mine: 0, drafts: 0 });
+    }
+
+    function filteredRows(list) {
+      if (repositorySelection.mode === 'all') return datasets[list];
+      return datasets[list].filter(pr => repositorySelection.repositories.includes(pr.repo));
+    }
+
+    function repositorySelectionLabel() {
+      if (repositorySelection.mode === 'all') return 'All repositories';
+      if (repositorySelection.repositories.length === 1) return repositorySelection.repositories[0];
+      return `${repositorySelection.repositories.length} repositories`;
+    }
+
+    function repositoryFilterMarkup() {
+      const selected = new Set(repositorySelection.repositories);
+      return `
+        <div class="repo-filter-strip">
+          <span class="repo-filter-label">Showing</span>
+          <button class="repo-filter-button" data-filter-toggle aria-expanded="${filterMenuOpen}" aria-label="Choose repositories. Current selection: ${repositorySelectionLabel()}">
+            <span class="persisted" title="Saved on this Mac">●</span><strong>${repositorySelectionLabel()}</strong><span>⌄</span>
+          </button>
+          <div class="repo-filter-menu" ${filterMenuOpen ? '' : 'hidden'}>
+            <div class="filter-menu-heading"><strong>Repositories</strong><span>This selection is saved on this Mac.</span></div>
+            <button class="filter-all ${repositorySelection.mode === 'all' ? 'active' : ''}" data-filter-all>
+              <span class="filter-check">✓</span><span>All repositories</span><span class="filter-repo-count">523 PRs</span>
+            </button>
+            ${filterableRepositories.map(repository => {
+              const counts = repositoryTotals[repository];
+              const total = counts.reviews + counts.mine + counts.drafts;
+              return `<button class="filter-repo ${selected.has(repository) ? 'active' : ''}" data-filter-repo="${repository}">
+                <span class="filter-check">✓</span><span class="filter-repo-name">${repository}</span><span class="filter-repo-count">${total}</span>
+              </button>`;
+            }).join('')}
+            <div class="filter-menu-footer"><span>Device-local preference</span><button class="small-action primary" data-filter-done>Done</button></div>
+          </div>
+        </div>`;
+    }
+
+    function reviewerMarkup(reviewers) {
+      if (!reviewers.length) return '';
+      return reviewers.map((reviewer, index) => {
+        if (reviewer.startsWith('more:')) {
+          return `<span class="avatar more" aria-label="${reviewer.slice(5)} more reviewers" title="${reviewer.slice(5)} more reviewers">+${reviewer.slice(5)}</span>`;
+        }
+        const team = reviewer.startsWith('team:');
+        const label = team ? reviewer.slice(5) : reviewer;
+        const className = team ? 'avatar team' : 'avatar';
+        const style = `--avatar:${avatarPalette[index % avatarPalette.length]}`;
+        return `<span class="${className}" style="${style}" aria-label="${team ? 'Team ' : 'Reviewer '}${label}" title="${team ? 'Team ' : 'Reviewer '}${label}">${team ? '◇' : label}</span>`;
+      }).join('');
+    }
+
+    function reviewerSummary(reviewers) {
+      if (!reviewers.length) return 'no reviewers';
+      return reviewers.map(reviewer => {
+        if (reviewer.startsWith('more:')) return `${reviewer.slice(5)} more reviewers`;
+        if (reviewer.startsWith('team:')) return `team ${reviewer.slice(5)}`;
+        return reviewer;
+      }).join(', ');
+    }
+
+    function rowMarkup(pr, options = {}) {
+      const id = `${pr.repo}-${pr.number}`.replaceAll('/', '-');
+      return `
+        <article class="pr-row" data-row="${id}" data-repo="${pr.repo}" tabindex="0" aria-label="${pr.repo} pull request ${pr.number}: ${pr.title}">
+          <div class="pr-main">
+            <div class="pr-repo">${pr.repo}</div>
+            <div class="pr-title"><span class="pr-number">#${pr.number}</span> ${pr.title}</div>
+            <div class="pr-meta">${pr.meta}</div>
+          </div>
+          <div class="roster" aria-label="Reviewers">${reviewerMarkup(pr.reviewers)}</div>
+          <div class="row-actions">
+            <button class="small-action primary" data-action="open">Open PR ↗</button>
+            <button class="small-action" data-action="copy">Copy link</button>
+            <button class="small-action" data-action="snooze">Snooze</button>
+            <button class="small-action danger" data-action="mute">Mute ${pr.repo.split('/')[1]}</button>
+          </div>
+        </article>`;
+    }
+
+    function stateChrome() {
+      const state = document.body.dataset.state;
+      return `
+        <div class="state-controls">
+          <span>Prototype data state</span>
+          ${['fresh','loading','stale','error'].map(key => `<button class="state-button ${state === key ? 'active' : ''}" data-state-choice="${key}">${key}</button>`).join('')}
+        </div>
+        <div class="state-banner stale">Cached data shown · last successful refresh 18 minutes ago</div>
+        <div class="state-banner error">Refresh failed · cached data remains available</div>`;
+    }
+
+    function headerMarkup(subtitle = '@FranciscoMoretti · 523 active PRs') {
+      const state = document.body.dataset.state;
+      const labels = { fresh: 'Updated 1m ago', loading: 'Refreshing…', stale: 'Cached 18m ago', error: 'Refresh failed' };
+      return `
+        <header class="app-header">
+          <div><h1 class="app-title">GitHubBar</h1><div class="account-line">${subtitle}</div></div>
+          <div class="header-meta"><span class="refresh-spinner"></span><span class="state-dot ${state}"></span><span>${labels[state]}</span></div>
+        </header>`;
+    }
+
+    function footerMarkup() {
+      return `
+        <footer class="app-footer">
+          <button class="footer-action">↻ <span>Refresh</span><span class="footer-key">⌘ R</span></button>
+          <button class="footer-action">⚙ <span>Settings…</span><span class="footer-key">⌘ ,</span></button>
+        </footer>`;
+    }
+
+    function listSection(title, count, rows, extraClass = '', summary = '') {
+      return `
+        <section class="section ${extraClass}">
+          <button class="section-header" data-collapse>
+            <span class="chevron">▾</span><span class="section-title">${title}</span><span class="section-count">${count}</span>
+            ${summary ? `<span class="section-summary">${summary}</span>` : ''}
+          </button>
+          <div class="section-body">
+            ${rows.map(pr => rowMarkup(pr)).join('')}
+            ${count > rows.length ? `<button class="show-more">Show ${Math.min(20, count - rows.length)} more · ${count - rows.length} remaining</button>` : ''}
+          </div>
+        </section>`;
+    }
+
+    function variantA() {
+      const counts = selectedRepositoryCounts();
+      const activeCount = counts.reviews + counts.mine + counts.drafts;
+      return `
+        <section class="popover variant-a" aria-label="Variant A Dense stack">
+          ${headerMarkup(`@FranciscoMoretti · ${activeCount} active PRs`)}
+          ${stateChrome()}
+          ${repositoryFilterMarkup()}
+          <div class="scroll-area">
+            ${listSection('Waiting for my review', counts.reviews, filteredRows('reviews'), 'reviews', 'oldest 2d')}
+            ${listSection('My PRs', counts.mine, filteredRows('mine'), 'mine', 'reviewers at right')}
+            ${listSection('Drafts', counts.drafts, filteredRows('drafts'), 'drafts')}
+          </div>
+          ${footerMarkup()}
+        </section>`;
+    }
+
+    function activeDataset(tab) {
+      return tab === 'mine' ? datasets.mine : tab === 'drafts' ? datasets.drafts : datasets.reviews;
+    }
+
+    function variantB() {
+      const tab = sessionStorage.getItem('prototype-tab') || 'reviews';
+      const tabData = {
+        reviews: { label: 'Waiting for my review', count: 12, note: 'Oldest requests first · showing 5 of 12' },
+        mine: { label: 'My PRs', count: 487, note: 'Recently updated first · showing 5 of 487' },
+        drafts: { label: 'Drafts', count: 24, note: 'Recently updated first · showing 2 of 24' },
+      }[tab];
+      return `
+        <section class="popover variant-b" aria-label="Variant B Review-first tabs">
+          ${headerMarkup('@FranciscoMoretti · all accessible repositories')}
+          ${stateChrome()}
+          <div class="review-hero">
+            <div><div class="hero-kicker">Your review queue</div><div class="hero-count">12 waiting</div><div class="hero-copy">Across 8 repositories · direct and team requests</div></div>
+            <div class="hero-oldest">Oldest request<strong>2 days</strong>tanstack/query</div>
+          </div>
+          <div class="tabs" role="tablist">
+            <button class="tab ${tab === 'reviews' ? 'active' : ''}" data-tab="reviews">Reviews <b>12</b></button>
+            <button class="tab ${tab === 'mine' ? 'active' : ''}" data-tab="mine">My PRs <b>487</b></button>
+            <button class="tab ${tab === 'drafts' ? 'active' : ''}" data-tab="drafts">Drafts <b>24</b></button>
+          </div>
+          <div class="tab-panel">
+            <div class="queue-note">${tabData.note}</div>
+            ${activeDataset(tab).map(pr => rowMarkup(pr)).join('')}
+            <button class="show-more">Load the next 20 from ${tabData.label}</button>
+          </div>
+          ${footerMarkup()}
+        </section>`;
+    }
+
+    function variantC() {
+      const pane = sessionStorage.getItem('prototype-pane') || 'reviews';
+      const paneData = {
+        reviews: { title: 'Waiting for my review', copy: 'Oldest review request first', count: 12 },
+        mine: { title: 'My PRs', copy: 'Recently updated first', count: 487 },
+        drafts: { title: 'Drafts', copy: 'Recently updated first', count: 24 },
+      }[pane];
+      return `
+        <section class="popover variant-c" aria-label="Variant C Navigation rail">
+          ${headerMarkup('@FranciscoMoretti · GitHub CLI account')}
+          ${stateChrome()}
+          <div class="workspace">
+            <aside class="rail">
+              <div class="rail-label">Pull requests</div>
+              <button class="rail-item ${pane === 'reviews' ? 'active' : ''}" data-pane="reviews"><span class="rail-icon">◎</span><span>My reviews</span><span class="rail-count">12</span></button>
+              <button class="rail-item ${pane === 'mine' ? 'active' : ''}" data-pane="mine"><span class="rail-icon">↗</span><span>My PRs</span><span class="rail-count">487</span></button>
+              <button class="rail-item ${pane === 'drafts' ? 'active' : ''}" data-pane="drafts"><span class="rail-icon">◌</span><span>Drafts</span><span class="rail-count">24</span></button>
+              <div class="rail-divider"></div>
+              <div class="rail-label">Visibility</div>
+              <button class="rail-item"><span class="rail-icon">◫</span><span>Muted repos</span><span class="rail-count">6</span></button>
+              <div class="rail-spacer"></div>
+              <div class="coverage"><strong>523 active PRs</strong>46 repositories<br/>3 organizations</div>
+            </aside>
+            <section class="focus-pane">
+              <div class="focus-heading">
+                <div><h2>${paneData.title}</h2><p>${paneData.copy}</p></div>
+                <span class="focus-total">${paneData.count} total</span>
+              </div>
+              <div class="focus-list">${activeDataset(pane).map(pr => rowMarkup(pr)).join('')}</div>
+              <div class="focus-bottom"><span>Showing ${activeDataset(pane).length} of ${paneData.count}</span><button class="small-action">Load 20 more</button></div>
+            </section>
+          </div>
+          ${footerMarkup()}
+        </section>`;
+    }
+
+    function codexbarRowMarkup(pr, { isDraft = false } = {}) {
+      const id = `codexbar-${pr.repo}-${pr.number}`.replaceAll('/', '-');
+      const singleRepository = repositorySelection.mode === 'selected' && repositorySelection.repositories.length === 1;
+      const status = isDraft ? 'Draft' : 'Open';
+      const metadata = `${singleRepository ? '' : `${pr.repo} · `}#${pr.number} · ${pr.meta}`;
+      const reviewers = reviewerMarkup(pr.reviewers);
+      const accessibleLabel = `Open ${pr.repo} pull request ${pr.number}: ${pr.title}. ${status}. ${pr.meta}. Reviewers: ${reviewerSummary(pr.reviewers)}.`;
+      return `
+        <button class="codexbar-pr-row ${isDraft ? 'is-draft' : ''}" data-open-pr data-row="${id}" data-repo="${pr.repo}" aria-label="${accessibleLabel}" title="Open ${pr.repo} #${pr.number}: ${pr.title}${isDraft ? ' (draft)' : ''}">
+          <span class="codexbar-pr-status ${isDraft ? 'draft' : 'open'}" role="img" aria-label="${status} pull request" title="${status}">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><path d="M6 7v10M18 17v-5a3 3 0 0 0-3-3h-4M14 6l-3 3 3 3"/></svg>
+            <span class="codexbar-status-dot" aria-hidden="true"></span>
+          </span>
+          <span class="codexbar-pr-copy">
+            <span class="codexbar-pr-title">${pr.title}</span>
+            <span class="codexbar-pr-info">
+              <span class="codexbar-pr-meta">${metadata}</span>
+              ${reviewers ? `<span class="codexbar-roster" aria-hidden="true">${reviewers}</span>` : ''}
+            </span>
+          </span>
+        </button>`;
+    }
+
+    function codexbarSection(title, count, rows, extraClass = '', visibleRows = 3) {
+      const shownRows = rows.slice(0, visibleRows);
+      const remaining = Math.max(0, count - shownRows.length);
+      return `
+        <section class="codexbar-section ${extraClass}">
+          <h2 class="codexbar-section-heading">${title}<span>${count}</span></h2>
+          ${shownRows.map(pr => codexbarRowMarkup(pr)).join('')}
+          ${remaining ? `<button class="codexbar-more" data-show-more>Show ${Math.min(20, remaining)} more…</button>` : ''}
+        </section>`;
+    }
+
+    function codexbarMyPullRequests(readyCount, draftCount, readyRows, draftRows) {
+      const rows = [
+        ...readyRows.map(pr => ({ ...pr, isDraft: false })),
+        ...draftRows.map(pr => ({ ...pr, isDraft: true })),
+      ].sort((a, b) => a.updatedMinutes - b.updatedMinutes);
+      const shownRows = rows.slice(0, 6);
+      const remaining = Math.max(0, readyCount + draftCount - shownRows.length);
+      return `
+        <section class="codexbar-section mine">
+          <h2 class="codexbar-section-heading">My PRs<span>${readyCount + draftCount}</span></h2>
+          ${shownRows.map(pr => codexbarRowMarkup(pr, { isDraft: pr.isDraft })).join('')}
+          ${remaining ? `<button class="codexbar-more" data-show-more>Show ${Math.min(20, remaining)} more…</button>` : ''}
+        </section>`;
+    }
+
+    function codexbarChevron() {
+      return `<svg class="codexbar-chevron" viewBox="0 0 8 12" aria-hidden="true"><path d="M2 1.8 6 6l-4 4.2" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    }
+
+    function codexbarIcon(name) {
+      const paths = {
+        folder: '<path d="M3 5.5a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
+        external: '<path d="M15 3h6v6"/><path d="m10 14 11-11"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+        refresh: '<path d="M21 12a9 9 0 0 0-15.74-6"/><path d="M3 4v6h6"/><path d="M3 12a9 9 0 0 0 15.74 6"/><path d="M21 20v-6h-6"/>',
+        settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.09a2 2 0 0 1 1 1.74v.5a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/>',
+        info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/>',
+        clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+        alert: '<path d="M10.3 3.7 2.7 17a2 2 0 0 0 1.73 3h15.14a2 2 0 0 0 1.73-3L13.7 3.7a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+        terminal: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3"/><path d="M13 15h4"/>',
+        logout: '<path d="m10 17 5-5-5-5"/><path d="M15 12H3"/><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>',
+      };
+      return `<svg class="codexbar-icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
+    }
+
+    function codexbarStateBanner(state) {
+      const states = {
+        loading: {
+          icon: 'refresh',
+          title: 'Refreshing in the background',
+          copy: 'The current snapshot stays available while GitHubBar checks every selected repository.',
+          action: '',
+        },
+        stale: {
+          icon: 'clock',
+          title: 'Showing cached data',
+          copy: 'The last complete snapshot is 18 minutes old. Counts and pull requests remain usable.',
+          action: '<button class="codexbar-inline-action" data-codex-refresh>Refresh</button>',
+        },
+        error: {
+          icon: 'alert',
+          title: 'Refresh failed',
+          copy: 'GitHub could not be reached. Nothing was removed from the last complete snapshot.',
+          action: '<button class="codexbar-inline-action" data-codex-refresh>Retry</button>',
+        },
+        partial: {
+          icon: 'alert',
+          title: 'Incomplete access',
+          copy: 'Three repositories need updated SSO or token access. Their last-known pull requests remain visible.',
+          action: '<button class="codexbar-inline-action" data-open-settings>Review</button>',
+        },
+      };
+      const detail = states[state];
+      if (!detail) return '';
+      return `<aside class="codexbar-state-banner ${state}" role="status" aria-live="polite">
+        <span class="codexbar-menu-icon">${codexbarIcon(detail.icon)}</span>
+        <span><strong>${detail.title}</strong>${detail.copy}</span>
+        ${detail.action}
+      </aside>`;
+    }
+
+    function codexbarStartupState(state) {
+      if (state === 'initial') {
+        return `<section class="codexbar-connection" aria-labelledby="connection-title" aria-busy="true">
+          <span class="connection-icon"><span class="connection-progress" aria-hidden="true"></span></span>
+          <h2 id="connection-title">Loading pull requests</h2>
+          <p>GitHubBar is creating the first local snapshot for @FranciscoMoretti. The menu will appear as soon as the first complete result is ready.</p>
+        </section>`;
+      }
+      if (state === 'cli-missing') {
+        return `<section class="codexbar-connection" aria-labelledby="connection-title">
+          <span class="connection-icon">${codexbarIcon('terminal')}</span>
+          <h2 id="connection-title">Install GitHub CLI</h2>
+          <p>GitHubBar uses an existing GitHub CLI session, but <strong>gh</strong> was not found on this Mac.</p>
+          <div class="connection-command" aria-label="Homebrew command to install GitHub CLI">brew install gh</div>
+          <div class="connection-actions">
+            <button class="connection-action" data-connect-guide>Installation guide</button>
+            <button class="connection-action primary" data-check-cli>Check again</button>
+          </div>
+        </section>`;
+      }
+      if (state === 'cli-signin') {
+        return `<section class="codexbar-connection" aria-labelledby="connection-title">
+          <span class="connection-icon">${codexbarIcon('terminal')}</span>
+          <h2 id="connection-title">Sign in with GitHub CLI</h2>
+          <p>GitHub CLI is installed, but no usable GitHub.com account is authenticated. Signing in does not give GitHubBar your password.</p>
+          <div class="connection-command" aria-label="GitHub CLI sign-in command">gh auth login --hostname github.com</div>
+          <div class="connection-actions">
+            <button class="connection-action" data-connect-guide>Setup guide</button>
+            <button class="connection-action primary" data-check-connection>Check again</button>
+          </div>
+        </section>`;
+      }
+      if (state === 'confirm-account') {
+        const accounts = [
+          { login: 'FranciscoMoretti', detail: 'Personal · 46 repositories' },
+          { login: 'francisco-acme', detail: 'Work · 18 repositories' },
+        ];
+        return `<section class="codexbar-connection" aria-labelledby="connection-title">
+          <span class="connection-icon">${codexbarIcon('info')}</span>
+          <h2 id="connection-title">Choose the account to monitor</h2>
+          <p>GitHubBar found two authenticated GitHub.com accounts. Choose one for this Mac.</p>
+          <div class="account-choices" role="radiogroup" aria-label="Authenticated GitHub CLI accounts">
+            ${accounts.map(account => `<button class="account-choice" role="radio" aria-checked="${String(selectedAccount === account.login)}" data-account="${account.login}">
+              <span class="account-radio" aria-hidden="true"></span>
+              <span class="account-name">@${account.login}<span class="account-detail">${account.detail}</span></span>
+              <span class="account-host">github.com</span>
+            </button>`).join('')}
+          </div>
+          <p class="account-note">GitHubBar will not change GitHub CLI's active account.</p>
+          <div class="connection-actions">
+            <button class="connection-action primary" data-confirm-account>Use @${selectedAccount}</button>
+          </div>
+        </section>`;
+      }
+      return '';
+    }
+
+    function codexbarRepositoryScope() {
+      const selected = new Set(repositorySelection.repositories);
+      return `
+        <div class="codexbar-menu-block codexbar-scope">
+          <button class="codexbar-menu-item" data-filter-toggle aria-expanded="${filterMenuOpen}" aria-label="Choose repositories. Current selection: ${repositorySelectionLabel()}">
+            <span class="codexbar-menu-icon">${codexbarIcon('folder')}</span><span>Repositories</span><span class="codexbar-menu-value">${repositorySelectionLabel()}</span>${codexbarChevron()}
+          </button>
+          <div class="repo-filter-menu" ${filterMenuOpen ? '' : 'hidden'}>
+            <div class="filter-menu-heading"><strong>Repositories</strong><span>This selection is saved on this Mac.</span></div>
+            <button class="filter-all ${repositorySelection.mode === 'all' ? 'active' : ''}" data-filter-all>
+              <span class="filter-check">✓</span><span>All repositories</span><span class="filter-repo-count">523 PRs</span>
+            </button>
+            ${filterableRepositories.map(repository => {
+              const counts = repositoryTotals[repository];
+              const total = counts.reviews + counts.mine + counts.drafts;
+              return `<button class="filter-repo ${selected.has(repository) ? 'active' : ''}" data-filter-repo="${repository}">
+                <span class="filter-check">✓</span><span class="filter-repo-name">${repository}</span><span class="filter-repo-count">${total}</span>
+              </button>`;
+            }).join('')}
+            <div class="filter-menu-footer"><span>Device-local preference</span><button class="small-action primary" data-filter-done>Done</button></div>
+          </div>
+        </div>`;
+    }
+
+    function variantD() {
+      const counts = selectedRepositoryCounts();
+      const state = currentScenario();
+      const startupState = !dataScenarios.includes(state);
+      const stateLabels = {
+        fresh: 'Updated 1m ago',
+        initial: 'Loading first snapshot…',
+        loading: 'Refreshing…',
+        stale: 'Cached 18m ago',
+        error: 'Refresh failed · cached data',
+        partial: 'Incomplete access · cached data',
+        'cli-missing': 'Account connection required',
+        'cli-signin': 'Account connection required',
+        'confirm-account': 'Confirm monitored account',
+      };
+      const accountLabels = {
+        initial: '@FranciscoMoretti',
+        'cli-missing': 'GitHub CLI ›',
+        'cli-signin': 'GitHub CLI ›',
+        'confirm-account': 'GitHub.com ›',
+      };
+      return `
+        <section class="popover variant-d ${startupState ? 'has-startup-state' : ''}" aria-label="Variant D CodexBar native menu">
+          <header class="codexbar-header">
+            <div><h1 class="codexbar-title">GitHubBar</h1><div class="codexbar-updated ${state}" role="status">${stateLabels[state]}</div></div>
+            <div class="codexbar-account"><strong>${startupState ? accountLabels[state] : '@FranciscoMoretti ›'}</strong></div>
+          </header>
+          <div class="codexbar-rule"></div>
+          ${startupState ? '' : codexbarRepositoryScope()}
+          ${startupState ? codexbarStartupState(state) : `<div class="codexbar-scroll">
+            ${codexbarStateBanner(state)}
+            ${codexbarSection('Waiting for my review', counts.reviews, filteredRows('reviews'), 'reviews', 3)}
+            ${codexbarMyPullRequests(counts.mine, counts.drafts, filteredRows('mine'), filteredRows('drafts'))}
+          </div>`}
+          <footer class="codexbar-footer">
+            ${startupState ? '' : `<div class="codexbar-menu-block">
+              <button class="codexbar-menu-item" data-open-dashboard><span class="codexbar-menu-icon">${codexbarIcon('external')}</span><span>Open GitHub Dashboard</span><span></span>${codexbarChevron()}</button>
+            </div>`}
+            <div class="codexbar-menu-block">
+              ${startupState ? '' : `<button class="codexbar-menu-item" data-codex-refresh><span class="codexbar-menu-icon">${codexbarIcon('refresh')}</span><span>Refresh</span><span></span><span class="codexbar-menu-key">⌘ R</span></button>`}
+              <button class="codexbar-menu-item"><span class="codexbar-menu-icon">${codexbarIcon('settings')}</span><span>Settings…</span><span></span><span class="codexbar-menu-key">⌘ ,</span></button>
+              <button class="codexbar-menu-item"><span class="codexbar-menu-icon">${codexbarIcon('info')}</span><span>About GitHubBar</span><span></span><span></span></button>
+              <button class="codexbar-menu-item"><span class="codexbar-menu-icon">${codexbarIcon('logout')}</span><span>Quit</span><span></span><span class="codexbar-menu-key">⌘ Q</span></button>
+            </div>
+          </footer>
+        </section>`;
+    }
+
+    function currentVariant() {
+      const requested = new URLSearchParams(location.search).get('variant')?.toUpperCase();
+      return variants.some(item => item.key === requested) ? requested : 'A';
+    }
+
+    function currentScenario() {
+      const requested = new URLSearchParams(location.search).get('scenario');
+      if (requested === 'connection') return 'cli-signin';
+      return scenarios.includes(requested) ? requested : 'fresh';
+    }
+
+    function setScenario(scenario) {
+      if (!scenarios.includes(scenario)) return;
+      const url = new URL(location.href);
+      url.searchParams.set('scenario', scenario);
+      history.replaceState(null, '', url);
+      render();
+    }
+
+    function render() {
+      const variant = currentVariant();
+      const selectedScenario = currentScenario();
+      const scenario = variant === 'D' || ['fresh', 'loading', 'stale', 'error'].includes(selectedScenario) ? selectedScenario : 'fresh';
+      document.body.dataset.state = scenario;
+      document.getElementById('stage').innerHTML = variant === 'B' ? variantB() : variant === 'C' ? variantC() : variant === 'D' ? variantD() : variantA();
+      const menuCount = variant === 'D' && !dataScenarios.includes(scenario) ? 0 : variant === 'A' || variant === 'D' ? selectedRepositoryCounts().reviews : 12;
+      const statusTrigger = document.querySelector('.status-trigger');
+      document.getElementById('statusMenuCount').textContent = menuCount > 9 ? '9+' : menuCount;
+      statusTrigger.dataset.count = menuCount;
+      statusTrigger.setAttribute('aria-label', `GitHubBar, ${menuCount} reviews waiting`);
+      document.querySelectorAll('[data-scenario]').forEach(button => {
+        button.setAttribute('aria-pressed', String(button.dataset.scenario === selectedScenario));
+      });
+      document.querySelector('.scenario-switcher').hidden = variant !== 'D';
+      const detail = variants.find(item => item.key === variant);
+      document.getElementById('variantLabel').innerHTML = `${detail.key}<small>— ${detail.name}</small>`;
+      document.title = `GitHubBar Prototype · ${detail.key} ${detail.name} · ${scenario}`;
+      wireInteractions();
+    }
+
+    function setVariant(delta) {
+      const current = variants.findIndex(item => item.key === currentVariant());
+      const next = variants[(current + delta + variants.length) % variants.length];
+      const url = new URL(location.href);
+      url.searchParams.set('variant', next.key);
+      history.replaceState(null, '', url);
+      render();
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(window.toastTimer);
+      window.toastTimer = setTimeout(() => toast.classList.remove('show'), 1500);
+    }
+
+    function wireInteractions() {
+      document.querySelectorAll('[data-state-choice]').forEach(button => {
+        button.addEventListener('click', () => setScenario(button.dataset.stateChoice));
+      });
+
+      document.querySelectorAll('[data-collapse]').forEach(button => {
+        button.addEventListener('click', () => button.closest('.section').classList.toggle('collapsed'));
+      });
+
+      document.querySelector('[data-filter-toggle]')?.addEventListener('click', () => {
+        filterMenuOpen = !filterMenuOpen;
+        render();
+      });
+
+      document.querySelector('[data-filter-all]')?.addEventListener('click', () => {
+        repositorySelection = { mode: 'all', repositories: [] };
+        saveRepositorySelection();
+        render();
+      });
+
+      document.querySelectorAll('[data-filter-repo]').forEach(button => {
+        button.addEventListener('click', () => {
+          const repository = button.dataset.filterRepo;
+          const repositories = repositorySelection.mode === 'selected' ? [...repositorySelection.repositories] : [];
+          const index = repositories.indexOf(repository);
+          if (index >= 0) repositories.splice(index, 1);
+          else repositories.push(repository);
+          repositorySelection = repositories.length ? { mode: 'selected', repositories } : { mode: 'all', repositories: [] };
+          saveRepositorySelection();
+          render();
+        });
+      });
+
+      document.querySelector('[data-filter-done]')?.addEventListener('click', () => {
+        filterMenuOpen = false;
+        render();
+      });
+
+      document.querySelectorAll('[data-open-pr]').forEach(button => {
+        button.addEventListener('click', () => showToast(`Would open ${button.dataset.repo} on GitHub`));
+      });
+
+      document.querySelectorAll('[data-show-more]').forEach(button => {
+        button.addEventListener('click', () => showToast('Would reveal the next 20 pull requests'));
+      });
+      document.querySelector('[data-open-dashboard]')?.addEventListener('click', () => showToast('Would open your GitHub pull-request dashboard'));
+      document.querySelectorAll('[data-codex-refresh]').forEach(button => {
+        button.addEventListener('click', () => {
+          setScenario('loading');
+          window.setTimeout(() => {
+            setScenario('fresh');
+            showToast('Pull requests refreshed');
+          }, 650);
+        });
+      });
+      document.querySelector('[data-open-settings]')?.addEventListener('click', () => showToast('Would open access coverage settings'));
+      document.querySelector('[data-connect-guide]')?.addEventListener('click', () => showToast('Would open GitHub CLI setup instructions'));
+      document.querySelector('[data-check-cli]')?.addEventListener('click', () => setScenario('cli-signin'));
+      document.querySelector('[data-check-connection]')?.addEventListener('click', () => {
+        setScenario('confirm-account');
+      });
+      document.querySelectorAll('[data-account]').forEach(button => {
+        button.addEventListener('click', () => {
+          selectedAccount = button.dataset.account;
+          render();
+        });
+      });
+      document.querySelector('[data-confirm-account]')?.addEventListener('click', () => {
+        setScenario('initial');
+        window.setTimeout(() => {
+          setScenario('fresh');
+          showToast(`Monitoring @${selectedAccount}`);
+        }, 650);
+      });
+
+      document.querySelectorAll('[data-tab]').forEach(button => {
+        button.addEventListener('click', () => {
+          sessionStorage.setItem('prototype-tab', button.dataset.tab);
+          render();
+        });
+      });
+
+      document.querySelectorAll('[data-pane]').forEach(button => {
+        button.addEventListener('click', () => {
+          sessionStorage.setItem('prototype-pane', button.dataset.pane);
+          render();
+        });
+      });
+
+      document.querySelectorAll('.pr-row').forEach(row => {
+        const select = () => {
+          document.querySelectorAll('.pr-row').forEach(other => other.classList.toggle('selected', other === row && !row.classList.contains('selected')));
+        };
+        row.addEventListener('click', event => { if (!event.target.closest('[data-action]')) select(); });
+        row.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(); } });
+      });
+
+      document.querySelectorAll('[data-action]').forEach(button => {
+        button.addEventListener('click', event => {
+          event.stopPropagation();
+          const row = button.closest('.pr-row');
+          const repo = row.dataset.repo;
+          const action = button.dataset.action;
+          if (action === 'snooze') {
+            row.classList.add('muted-row');
+            showToast('Snoozed locally until tomorrow');
+          } else if (action === 'mute') {
+            document.querySelectorAll(`[data-repo="${CSS.escape(repo)}"]`).forEach(item => item.classList.add('muted-row'));
+            showToast(`Muted ${repo} locally`);
+          } else if (action === 'copy') {
+            showToast('PR link copied');
+          } else {
+            showToast('Would open this PR on GitHub');
+          }
+        });
+      });
+    }
+
+    document.getElementById('previousVariant').addEventListener('click', () => setVariant(-1));
+    document.getElementById('nextVariant').addEventListener('click', () => setVariant(1));
+    document.querySelectorAll('[data-scenario]').forEach(button => {
+      button.addEventListener('click', () => setScenario(button.dataset.scenario));
+    });
+    window.addEventListener('popstate', render);
+    window.addEventListener('keydown', event => {
+      const target = event.target;
+      if (target.matches('input, textarea, button, select, [contenteditable]')) return;
+      if (event.key === 'ArrowLeft') setVariant(-1);
+      if (event.key === 'ArrowRight') setVariant(1);
+      if (event.key === 'Escape' && filterMenuOpen) {
+        filterMenuOpen = false;
+        render();
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>

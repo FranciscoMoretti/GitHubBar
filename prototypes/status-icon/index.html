@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GitHubBar Status Icon Study</title>
+  <style>
+    :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #172029; background: #eef1f4; }
+    main { width: min(100%, 960px); margin: 0 auto; }
+    img { width: 100%; height: auto; display: block; }
+    nav { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 40px 28px; }
+    a { padding: 6px 9px; border: 1px solid #c9d0d6; border-radius: 7px; color: #46525c; background: rgba(255,255,255,.65); font-size: 11px; text-decoration: none; }
+    a:hover { background: #fff; }
+  </style>
+</head>
+<body>
+  <main>
+    <img src="preview.svg" width="960" height="560" alt="GitHubBar status-item icon study showing no badge, 4 waiting, and 9 plus waiting states at native and enlarged sizes">
+    <nav aria-label="Icon source files">
+      <a href="githubbar-status-empty.svg">No-badge SVG</a>
+      <a href="githubbar-status-4.svg">4-badge SVG</a>
+      <a href="githubbar-status-9plus.svg">9+-badge SVG</a>
+      <a href="preview.svg">Preview SVG</a>
+    </nav>
+  </main>
+</body>
+</html>

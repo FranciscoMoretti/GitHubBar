@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560">
+  <defs>
+    <path id="pr-shape" d="M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z"/>
+
+    <mask id="clear-four" maskUnits="userSpaceOnUse" x="0" y="0" width="18" height="18">
+      <rect width="18" height="18" fill="#fff"/>
+      <circle cx="14" cy="14" r="4.6" fill="#000"/>
+    </mask>
+    <mask id="digit-four" maskUnits="userSpaceOnUse" x="0" y="0" width="18" height="18">
+      <rect width="18" height="18" fill="#fff"/>
+      <path d="M15.05 16.55v-5.1l-3.15 3.2h4.35" fill="none" stroke="#000" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"/>
+    </mask>
+    <mask id="clear-nine" maskUnits="userSpaceOnUse" x="0" y="0" width="18" height="18">
+      <rect width="18" height="18" fill="#fff"/>
+      <rect x="7.55" y="9.45" width="10.65" height="8.75" rx="4.375" fill="#000"/>
+    </mask>
+    <mask id="digit-nine" maskUnits="userSpaceOnUse" x="0" y="0" width="18" height="18">
+      <rect width="18" height="18" fill="#fff"/>
+      <circle cx="10.95" cy="12.95" r="1.2" fill="none" stroke="#000" stroke-width=".88"/>
+      <path d="M12 13.3c0 1.55-.45 2.5-1.75 2.85M15.05 12.25v3.05M13.525 13.775h3.05" fill="none" stroke="#000" stroke-width=".88" stroke-linecap="round"/>
+    </mask>
+
+    <symbol id="icon-empty" viewBox="0 0 18 18">
+      <use href="#pr-shape" x="1" y="1" fill="currentColor"/>
+    </symbol>
+    <symbol id="icon-four" viewBox="0 0 18 18">
+      <use href="#pr-shape" x="1" y="1" fill="currentColor" mask="url(#clear-four)"/>
+      <circle cx="14" cy="14" r="3.9" fill="currentColor" mask="url(#digit-four)"/>
+    </symbol>
+    <symbol id="icon-nine" viewBox="0 0 18 18">
+      <use href="#pr-shape" x="1" y="1" fill="currentColor" mask="url(#clear-nine)"/>
+      <rect x="8.25" y="10.15" width="9.25" height="7.35" rx="3.675" fill="currentColor" mask="url(#digit-nine)"/>
+    </symbol>
+
+    <pattern id="pixel-grid" width="10" height="10" patternUnits="userSpaceOnUse">
+      <path d="M10 0H0V10" fill="none" stroke="#d7dce1" stroke-width="1"/>
+    </pattern>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#1b2730" flood-opacity=".13"/>
+    </filter>
+  </defs>
+
+  <rect width="960" height="560" fill="#eef1f4"/>
+  <text x="40" y="38" fill="#172029" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="20" font-weight="700">GitHubBar status-item icon</text>
+  <text x="40" y="59" fill="#68737d" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="11">18×18 pt monochrome template · numeric badge is part of the same image mask</text>
+
+  <!-- Real-size menu-bar context -->
+  <g filter="url(#shadow)">
+    <rect x="40" y="78" width="880" height="34" rx="8" fill="#2586bd"/>
+    <circle cx="64" cy="95" r="6" fill="none" stroke="#fff" stroke-width="1.5" opacity=".9"/>
+    <path d="M61 95h6M64 92v6" stroke="#fff" stroke-width="1.25" stroke-linecap="round" opacity=".9"/>
+    <rect x="86" y="88" width="16" height="13" rx="4" fill="none" stroke="#fff" stroke-width="1.4" opacity=".9"/>
+    <circle cx="91" cy="94.5" r="1.3" fill="#fff" opacity=".9"/>
+    <circle cx="97" cy="94.5" r="1.3" fill="#fff" opacity=".9"/>
+    <circle cx="123" cy="95" r="7" fill="none" stroke="#fff" stroke-width="1.4" opacity=".9"/>
+    <path d="M123 88v7" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".9"/>
+    <rect x="146" y="87" width="15" height="16" rx="3" fill="none" stroke="#fff" stroke-width="1.4" opacity=".9"/>
+    <path d="M150 99V91l7 8v-8" fill="none" stroke="#fff" stroke-width="1.2" opacity=".9"/>
+
+    <path d="M704 99c4-5 10-5 14 0M707 96c2.5-2.5 5.5-2.5 8 0M711 101h.1" fill="none" stroke="#fff" stroke-width="1.45" stroke-linecap="round" opacity=".9"/>
+    <rect x="730" y="88" width="22" height="14" rx="3" fill="none" stroke="#fff" stroke-width="1.3" opacity=".9"/>
+    <path d="M752 92h2v6h-2" fill="none" stroke="#fff" stroke-width="1.2" opacity=".9"/>
+    <rect x="759" y="83" width="24" height="24" rx="6" fill="#164f72" fill-opacity=".62"/>
+    <use href="#icon-four" x="762" y="86" width="18" height="18" color="#fff"/>
+    <text x="797" y="99" fill="#fff" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="12" font-weight="600">Tue 19:42</text>
+  </g>
+  <text x="40" y="132" fill="#7a858e" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="10">Shown at intended 1× point size. macOS supplies the highlighted square slot.</text>
+
+  <!-- State cards -->
+  <g filter="url(#shadow)">
+    <rect x="40" y="155" width="270" height="340" rx="14" fill="#fff"/>
+    <rect x="40" y="155" width="270" height="48" rx="14" fill="#1d2023"/>
+    <rect x="40" y="189" width="270" height="14" fill="#1d2023"/>
+    <use href="#icon-empty" x="58" y="170" width="18" height="18" color="#fff"/>
+    <text x="88" y="183" fill="#fff" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="12" font-weight="650">Nothing waiting</text>
+    <rect x="85" y="232" width="180" height="180" rx="12" fill="#f7f8fa"/>
+    <rect x="85" y="232" width="180" height="180" rx="12" fill="url(#pixel-grid)"/>
+    <use href="#icon-empty" x="85" y="232" width="180" height="180" color="#161a1d"/>
+    <text x="60" y="451" fill="#172029" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="13" font-weight="700">Base pull-request glyph</text>
+    <text x="60" y="470" fill="#7a858e" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="10">No badge at zero; the slot stays available.</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="345" y="155" width="270" height="340" rx="14" fill="#fff"/>
+    <rect x="345" y="155" width="270" height="48" rx="14" fill="#1d2023"/>
+    <rect x="345" y="189" width="270" height="14" fill="#1d2023"/>
+    <use href="#icon-four" x="363" y="170" width="18" height="18" color="#fff"/>
+    <text x="393" y="183" fill="#fff" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="12" font-weight="650">4 waiting</text>
+    <rect x="390" y="232" width="180" height="180" rx="12" fill="#f7f8fa"/>
+    <rect x="390" y="232" width="180" height="180" rx="12" fill="url(#pixel-grid)"/>
+    <use href="#icon-four" x="390" y="232" width="180" height="180" color="#161a1d"/>
+    <text x="365" y="451" fill="#172029" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="13" font-weight="700">Single-digit badge</text>
+    <text x="365" y="470" fill="#7a858e" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="10">Circular badge with a clear separation halo.</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="650" y="155" width="270" height="340" rx="14" fill="#fff"/>
+    <rect x="650" y="155" width="270" height="48" rx="14" fill="#1d2023"/>
+    <rect x="650" y="189" width="270" height="14" fill="#1d2023"/>
+    <use href="#icon-nine" x="668" y="170" width="18" height="18" color="#fff"/>
+    <text x="698" y="183" fill="#fff" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="12" font-weight="650">9+ waiting</text>
+    <rect x="695" y="232" width="180" height="180" rx="12" fill="#f7f8fa"/>
+    <rect x="695" y="232" width="180" height="180" rx="12" fill="url(#pixel-grid)"/>
+    <use href="#icon-nine" x="695" y="232" width="180" height="180" color="#161a1d"/>
+    <text x="670" y="451" fill="#172029" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="13" font-weight="700">Capped high-volume badge</text>
+    <text x="670" y="470" fill="#7a858e" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="10">Caps at 9+ to preserve the square status slot.</text>
+  </g>
+
+  <rect x="40" y="518" width="880" height="1" fill="#d7dce1"/>
+  <text x="40" y="542" fill="#68737d" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="11">Template source: black + transparency only</text>
+  <text x="920" y="542" text-anchor="end" fill="#68737d" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="11">18×18 pt · 36×36 px @2× · exact count in accessibility label</text>
+</svg>
