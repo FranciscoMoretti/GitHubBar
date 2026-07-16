@@ -20,6 +20,7 @@ struct WorkloadSection: View {
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
+            .padding(.bottom, 3)
 
             if pullRequests.isEmpty {
                 Text(emptyMessage)

@@ -60,14 +60,14 @@ enum StatusIconRenderer {
     }
 
     private static func drawBadge(text: String) {
-        let badgeRect = NSRect(x: 9.1, y: 0.3, width: 8.6, height: 8.6)
+        let badgeRect = NSRect(x: 7.6, y: 0, width: 10.4, height: 10.4)
 
         NSColor.black.setFill()
         NSBezierPath(ovalIn: badgeRect).fill()
 
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current?.compositingOperation = .clear
-        let fontSize: CGFloat = text == "9+" ? 4.2 : 5.6
+        let fontSize: CGFloat = text == "9+" ? 5 : 7
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .bold),
             .foregroundColor: NSColor.clear,

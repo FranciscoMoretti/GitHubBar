@@ -79,21 +79,21 @@ struct RepositoryScopeControl: View {
 
 private struct RepositoryPicker: View {
     let repositories: [RepositoryChoice]
-    let onApply: (RepositoryScope) -> Void
+    let currentScope: RepositoryScope
+    let onSelect: (RepositoryScope) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
-    @State private var draftScope: RepositoryScope
     @FocusState private var searchIsFocused: Bool
 
     init(
         repositories: [RepositoryChoice],
         currentScope: RepositoryScope,
-        onApply: @escaping (RepositoryScope) -> Void
+        onSelect: @escaping (RepositoryScope) -> Void
     ) {
         self.repositories = repositories
-        self.onApply = onApply
-        _draftScope = State(initialValue: currentScope)
+        self.currentScope = currentScope
+        self.onSelect = onSelect
     }
 
     var body: some View {
@@ -118,9 +118,9 @@ private struct RepositoryPicker: View {
                     repositoryOption(
                         title: "All repositories",
                         subtitle: "\(repositories.count) accessible",
-                        isSelected: draftScope == .all
+                        isSelected: currentScope == .all
                     ) {
-                        draftScope = .all
+                        select(.all)
                     }
 
                     ForEach(filteredRepositories) { repository in
@@ -129,7 +129,7 @@ private struct RepositoryPicker: View {
                             subtitle: nil,
                             isSelected: selectedRepositoryIDs.contains(repository.id)
                         ) {
-                            toggle(repository.id)
+                            select(.selected([repository.id]))
                         }
                     }
 
@@ -154,21 +154,6 @@ private struct RepositoryPicker: View {
                 .padding(.vertical, 6)
             }
 
-            Divider()
-            HStack {
-                Text(selectionSummary)
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Cancel") { dismiss() }
-                Button("Done") {
-                    onApply(draftScope)
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .controlSize(.small)
-            .padding(10)
         }
         .frame(width: 330, height: 410)
         .onAppear { searchIsFocused = true }
@@ -182,7 +167,7 @@ private struct RepositoryPicker: View {
     }
 
     private var selectedRepositoryIDs: Set<String> {
-        draftScope.selectedRepositoryIDs
+        currentScope.selectedRepositoryIDs
     }
 
     private var unavailableSelectionCount: Int {
@@ -190,23 +175,9 @@ private struct RepositoryPicker: View {
         return selectedRepositoryIDs.subtracting(availableIDs).count
     }
 
-    private var selectionSummary: String {
-        switch draftScope {
-        case .all: "All repositories"
-        case let .selected(repositoryIDs): "\(repositoryIDs.count) selected"
-        }
-    }
-
-    private func toggle(_ repositoryID: String) {
-        var selected = selectedRepositoryIDs
-        if case .all = draftScope {
-            selected = [repositoryID]
-        } else if selected.contains(repositoryID) {
-            selected.remove(repositoryID)
-        } else {
-            selected.insert(repositoryID)
-        }
-        draftScope = .selected(selected)
+    private func select(_ scope: RepositoryScope) {
+        onSelect(scope)
+        dismiss()
     }
 
     private func repositoryOption(
