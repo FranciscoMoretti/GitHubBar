@@ -99,7 +99,10 @@ fi
 
 rm -f "$archive_path" "$archive_path.sha256"
 ditto -c -k --sequesterRsrc --keepParent "$app_path" "$archive_path"
-shasum -a 256 "$archive_path" > "$archive_path.sha256"
+(
+  cd "$dist_dir"
+  shasum -a 256 "${archive_path:t}" > "${archive_path:t}.sha256"
+)
 
 print "Created $archive_path"
 print "Architectures: $(lipo -archs "$app_path/Contents/MacOS/GitHubBar")"

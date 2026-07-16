@@ -28,6 +28,34 @@ The check script builds the strict-concurrency core package, exercises its publi
 
 ## Validation release
 
+### Install the latest developer build
+
+Validation builds are intended for developers and are not notarized. Download the ZIP and checksum from the current [validation release](https://github.com/FranciscoMoretti/githubbar/releases), then install it with:
+
+```sh
+release=validation-v0.1.0-3
+download_dir="$(mktemp -d)"
+mkdir -p "$HOME/Applications"
+cd "$download_dir"
+
+gh release download "$release" \
+  --repo FranciscoMoretti/githubbar \
+  --pattern '*.zip' \
+  --pattern '*.zip.sha256' \
+  --clobber
+
+shasum -a 256 --check ./*.zip.sha256
+ditto -x -k ./*.zip .
+rm -rf "$HOME/Applications/GitHubBar.app"
+mv GitHubBar.app "$HOME/Applications/GitHubBar.app"
+xattr -dr com.apple.quarantine "$HOME/Applications/GitHubBar.app"
+open "$HOME/Applications/GitHubBar.app"
+```
+
+These commands replace an existing copy in `~/Applications`. For a future validation release, change the `release` value. Removing the quarantine attribute opts this specific downloaded copy out of Gatekeeper assessment; only do this after the checksum succeeds and when the release came from this repository. Because validation builds have no Apple-verified Developer ID or notarization, the checksum detects a corrupted or mismatched download but is not an independent authenticity guarantee if the GitHub release itself is compromised. Every newly downloaded build must be verified and installed again.
+
+### Package a developer build
+
 Create the universal, ad-hoc-signed validation artifact with:
 
 ```sh
