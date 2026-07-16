@@ -44,6 +44,7 @@ struct PopoverView: View {
                     }
                     .padding(.horizontal, 18)
                 }
+                .id(repositoryScopeScrollIdentity)
             } else {
                 AccountConnectionView(
                     accountConnection: appModel.state.accountConnection,
@@ -184,6 +185,20 @@ struct PopoverView: View {
         }
         return true
     }
+
+    private var repositoryScopeScrollIdentity: RepositoryScopeScrollIdentity {
+        switch appModel.state.repositoryScope {
+        case .all:
+            .all
+        case let .selected(repositoryIDs):
+            .selected(repositoryIDs.sorted())
+        }
+    }
+}
+
+private enum RepositoryScopeScrollIdentity: Hashable {
+    case all
+    case selected([String])
 }
 
 private struct InitialWorkloadLoadingView: View {
