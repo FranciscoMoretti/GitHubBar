@@ -14,7 +14,7 @@ enum WorkloadClientChecks {
             accessToken: GitHubAccessToken("fixture-token")
         )
 
-        let result = await client.reconcile(account: account, repositoryScope: .all, previousSnapshot: nil)
+        let result = await client.reconcile(account: account)
         guard case let .complete(snapshot, _) = result else {
             return ["FAILED: Complete direct/team/authored workload reconciliation"]
         }
@@ -24,10 +24,16 @@ enum WorkloadClientChecks {
         check(snapshot.authoredPullRequests.first?.isDraft == true, "Drafts remain in My PRs", failures: &failures)
         check(snapshot.waitingForReview.first?.reviewers.count == 4, "Review roster combines requests, submitted reviews, and later pages", failures: &failures)
         check(snapshot.availableRepositories.map(\.id) == ["REPO-1", "REPO-2"], "Accessible Repository catalog is independent of active PRs", failures: &failures)
+        let accountWideQueries = await transport.searchQueries()
+        check(
+            !accountWideQueries.isEmpty && accountWideQueries.allSatisfy { !$0.contains("repo:") },
+            "Reconciliation discovers the account-wide workload without Repository scope qualifiers",
+            failures: &failures
+        )
 
         let largeRosterResult = await GraphQLGitHubWorkloadClient(
             transport: WorkloadFixtureTransport(usesLargeRoster: true)
-        ).reconcile(account: account, repositoryScope: .all, previousSnapshot: nil)
+        ).reconcile(account: account)
         if case let .complete(largeRosterSnapshot, _) = largeRosterResult {
             check(
                 largeRosterSnapshot.waitingForReview.first?.reviewers.count == 101,
@@ -38,27 +44,9 @@ enum WorkloadClientChecks {
             failures.append("FAILED: Review rosters above 100 entries reconcile")
         }
 
-        let selectedTransport = WorkloadFixtureTransport()
-        let selectedClient = GraphQLGitHubWorkloadClient(transport: selectedTransport)
-        _ = await selectedClient.reconcile(
-            account: account,
-            repositoryScope: .selected(["REPO-1"]),
-            previousSnapshot: nil
-        )
-        let scopedQueries = await selectedTransport.searchQueries()
-        check(
-            !scopedQueries.isEmpty && scopedQueries.allSatisfy { $0.contains("repo:alaro-ai/app") },
-            "Repository scope constrains every discovery search",
-            failures: &failures
-        )
-
         let rateLimitStart = Date()
         let rateLimitedClient = GraphQLGitHubWorkloadClient(transport: RateLimitedFixtureTransport())
-        let rateLimitedResult = await rateLimitedClient.reconcile(
-            account: account,
-            repositoryScope: .all,
-            previousSnapshot: nil
-        )
+        let rateLimitedResult = await rateLimitedClient.reconcile(account: account)
         if case let .failed(.rateLimited, metadata) = rateLimitedResult {
             check(
                 metadata.resetAt.map { $0 >= rateLimitStart.addingTimeInterval(59) } == true,
@@ -71,7 +59,7 @@ enum WorkloadClientChecks {
 
         let organizationAuthorizationResult = await GraphQLGitHubWorkloadClient(
             transport: OrganizationAuthorizationFixtureTransport()
-        ).reconcile(account: account, repositoryScope: .all, previousSnapshot: nil)
+        ).reconcile(account: account)
         if case .failed(.organizationAuthorizationRequired, _) = organizationAuthorizationResult {
             // Expected: organization authorization is an access-coverage problem, not rate limiting.
         } else {
@@ -80,7 +68,7 @@ enum WorkloadClientChecks {
 
         let partialPageResult = await GraphQLGitHubWorkloadClient(
             transport: PartialPageFixtureTransport()
-        ).reconcile(account: account, repositoryScope: .all, previousSnapshot: nil)
+        ).reconcile(account: account)
         if case let .partial(partialSnapshot, metadata) = partialPageResult {
             check(
                 partialSnapshot.authoredPullRequests.map(\.id) == ["PR-3"],
@@ -99,11 +87,7 @@ enum WorkloadClientChecks {
         let scaleTransport = TargetScaleFixtureTransport(pullRequestCount: 500)
         let scaleClient = GraphQLGitHubWorkloadClient(transport: scaleTransport)
         let scaleStart = ContinuousClock.now
-        let scaleResult = await scaleClient.reconcile(
-            account: account,
-            repositoryScope: .all,
-            previousSnapshot: nil
-        )
+        let scaleResult = await scaleClient.reconcile(account: account)
         let scaleDuration = scaleStart.duration(to: .now)
         let scaleMetrics = await scaleTransport.metrics()
         if case let .complete(scaleSnapshot, _) = scaleResult {
@@ -122,7 +106,7 @@ enum WorkloadClientChecks {
         )
         let partialRateResult = await GraphQLGitHubWorkloadClient(
             transport: partialRateTransport
-        ).reconcile(account: account, repositoryScope: .all, previousSnapshot: nil)
+        ).reconcile(account: account)
         if case let .partial(partialRateSnapshot, metadata) = partialRateResult {
             check(!partialRateSnapshot.authoredPullRequests.isEmpty, "Confirmed hydration batches survive a partial rate limit", failures: &failures)
             check(metadata.rateLimitEncountered, "A partial rate limit requests bounded backoff", failures: &failures)

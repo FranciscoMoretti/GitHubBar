@@ -3,9 +3,20 @@ import XCTest
 @testable import GitHubBarCore
 
 final class SnapshotStoreTests: XCTestCase {
+    func testRejectsLegacyScopeBoundSnapshot() async throws {
+        let store = InMemorySnapshotStore(snapshot: fixtureSnapshot(schemaVersion: 1))
+
+        do {
+            _ = try await store.load(hostname: "github.com", accountLogin: "FranciscoMoretti")
+            XCTFail("Expected legacy Snapshot rejection")
+        } catch SnapshotStoreError.incompatibleVersion {
+            // Expected.
+        }
+    }
+
     func testRejectsSnapshotWithUnsupportedSchemaVersion() async throws {
         let store = InMemorySnapshotStore(
-            snapshot: fixtureSnapshot(schemaVersion: 2)
+            snapshot: fixtureSnapshot(schemaVersion: WorkloadSnapshot.currentSchemaVersion + 1)
         )
 
         do {
@@ -56,14 +67,15 @@ final class SnapshotStoreTests: XCTestCase {
         }
     }
 
-    private func fixtureSnapshot(schemaVersion: Int = 1) -> WorkloadSnapshot {
+    private func fixtureSnapshot(
+        schemaVersion: Int = WorkloadSnapshot.currentSchemaVersion
+    ) -> WorkloadSnapshot {
         WorkloadSnapshot(
             schemaVersion: schemaVersion,
             hostname: "github.com",
             accountLogin: "FranciscoMoretti",
             capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
             completeness: .complete,
-            repositoryScope: .all,
             availableRepositories: [],
             waitingForReview: [],
             authoredPullRequests: []

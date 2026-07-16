@@ -49,23 +49,27 @@ The people and teams requested to review a pull request, plus people who have al
 _Avoid_: Reviewer list, assignees, participants
 
 **Repository scope**:
-The device-local set of accessible repositories included in the active workload. It controls reconciliation, visible pull requests, and the review count, and defaults to all accessible repositories.
+The device-local set of accessible repositories projected from the Account workload into the Active workload. It controls visible pull requests and the Review count, defaults to all accessible repositories, and does not cause Reconciliation when changed.
 _Avoid_: Mute list, notification filter
 
 **Review count**:
 The number of pull requests in Waiting for my review under the current Repository scope. It is GitHubBar's only proactive attention signal in the MVP.
 _Avoid_: Unread count, notification count
 
+**Account workload**:
+All open Review requests and Authored pull requests visible through the Monitored account's Access coverage, before Repository scope is applied. It is the canonical source for device-local filtering and may span hundreds of pull requests under a target throughput of 100 pull requests per day.
+_Avoid_: Global scope, unfiltered feed
+
 **Active workload**:
-The pull requests in Waiting for my review and My PRs under the current Repository scope, potentially spanning hundreds of pull requests under a target throughput of 100 pull requests per day.
+The visible Waiting for my review and My PRs lists projected from the Account workload under the current Repository scope.
 _Avoid_: Inbox, feed, history
 
 **Reconciliation**:
-A complete network refresh that rediscovers Waiting for my review and My PRs and hydrates their row and review-roster data.
+A complete network refresh that rediscovers the Account workload and hydrates its row and Review-roster data.
 _Avoid_: Sync, poll, incremental update
 
 **Snapshot**:
-An account-bound, timestamped representation of the active workload, including whether the reconciliation that produced it was complete or partial.
+An account-bound, timestamped representation of the Account workload, including whether the Reconciliation that produced it was complete or partial. A Snapshot is independent of Repository scope.
 _Avoid_: Cache, response, feed
 
 **Refresh health**:

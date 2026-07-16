@@ -21,7 +21,9 @@ public actor InMemorySnapshotStore: SnapshotStore {
 
     public func load(hostname: String, accountLogin: String) async throws -> WorkloadSnapshot? {
         guard let snapshot else { return nil }
-        guard snapshot.schemaVersion == 1 else { throw SnapshotStoreError.incompatibleVersion }
+        guard snapshot.schemaVersion == WorkloadSnapshot.currentSchemaVersion else {
+            throw SnapshotStoreError.incompatibleVersion
+        }
         guard snapshot.hostname.caseInsensitiveCompare(hostname) == .orderedSame,
               snapshot.accountLogin.caseInsensitiveCompare(accountLogin) == .orderedSame else {
             throw SnapshotStoreError.identityMismatch
@@ -67,7 +69,7 @@ public actor FileSnapshotStore: SnapshotStore {
         guard let snapshot = try? decoder().decode(WorkloadSnapshot.self, from: data) else {
             throw SnapshotStoreError.corrupt
         }
-        guard snapshot.schemaVersion == 1 else {
+        guard snapshot.schemaVersion == WorkloadSnapshot.currentSchemaVersion else {
             throw SnapshotStoreError.incompatibleVersion
         }
         guard snapshot.hostname.caseInsensitiveCompare(hostname) == .orderedSame,

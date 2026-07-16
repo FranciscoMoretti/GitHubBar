@@ -15,11 +15,7 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         self.hydrationConcurrency = max(1, hydrationConcurrency)
     }
 
-    public func reconcile(
-        account: ResolvedAccount,
-        repositoryScope: RepositoryScope,
-        previousSnapshot: WorkloadSnapshot?
-    ) async -> WorkloadReconciliationResult {
+    public func reconcile(account: ResolvedAccount) async -> WorkloadReconciliationResult {
         var metadata = MetadataAccumulator()
 
         let repositoryCatalog: [RepositoryChoice]
@@ -31,12 +27,6 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
             metadata.record(error: error)
             return .failed(failure(for: error, fallback: .discovery), metadata.presentation)
         }
-        let repositoryQualifiers = makeRepositoryQualifiers(
-            scope: repositoryScope,
-            repositoryCatalog: repositoryCatalog,
-            metadata: &metadata
-        )
-
         let teams: [TeamReference]
         do {
             let output = try await discoverTeams(account: account)
@@ -50,8 +40,7 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         let directIDs: [String]
         do {
             let output = try await searchPullRequestIDs(
-                baseQuery: "is:pr is:open user-review-requested:\(account.login) sort:updated-asc",
-                repositoryQualifiers: repositoryQualifiers,
+                query: "is:pr is:open user-review-requested:\(account.login) sort:updated-asc",
                 account: account
             )
             directIDs = output.value
@@ -65,8 +54,7 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         for team in teams {
             do {
                 let output = try await searchPullRequestIDs(
-                    baseQuery: "is:pr is:open team-review-requested:\(team.searchQualifier) sort:updated-asc",
-                    repositoryQualifiers: repositoryQualifiers,
+                    query: "is:pr is:open team-review-requested:\(team.searchQualifier) sort:updated-asc",
                     account: account
                 )
                 teamIDs.append(contentsOf: output.value)
@@ -79,8 +67,7 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         let authoredIDs: [String]
         do {
             let output = try await searchPullRequestIDs(
-                baseQuery: "is:pr is:open author:\(account.login) sort:updated-desc",
-                repositoryQualifiers: repositoryQualifiers,
+                query: "is:pr is:open author:\(account.login) sort:updated-desc",
                 account: account
             )
             authoredIDs = output.value
@@ -110,8 +97,7 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         let waitingForReview = reviewDiscoveryIDs.compactMap { id -> PullRequestPresentation? in
             guard let record = recordsByID[id],
                   !record.isDraft,
-                  !record.requestedReviewerKeys.isDisjoint(with: monitoredReviewerKeys),
-                  repositoryScope.includes(repositoryID: record.repositoryID) else {
+                  !record.requestedReviewerKeys.isDisjoint(with: monitoredReviewerKeys) else {
                 return nil
             }
             return record.presentation
@@ -123,8 +109,7 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
 
         let authoredPullRequests = authoredDiscoveryIDs.compactMap { id -> PullRequestPresentation? in
             guard let record = recordsByID[id],
-                  record.authorLogin.caseInsensitiveCompare(account.login) == .orderedSame,
-                  repositoryScope.includes(repositoryID: record.repositoryID) else {
+                  record.authorLogin.caseInsensitiveCompare(account.login) == .orderedSame else {
                 return nil
             }
             return record.presentation
@@ -140,7 +125,6 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
             accountLogin: account.login,
             capturedAt: Date(),
             completeness: completeness,
-            repositoryScope: repositoryScope,
             availableRepositories: repositoryCatalog,
             waitingForReview: waitingForReview,
             authoredPullRequests: authoredPullRequests
@@ -257,29 +241,6 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
             .values
             .sorted { $0.searchQualifier < $1.searchQualifier }
         return OperationOutput(value: uniqueTeams, metadata: metadata)
-    }
-
-    private func searchPullRequestIDs(
-        baseQuery: String,
-        repositoryQualifiers: [String],
-        account: ResolvedAccount
-    ) async throws -> OperationOutput<[String]> {
-        var metadata = MetadataAccumulator()
-        var ids: [String] = []
-        for (index, qualifier) in repositoryQualifiers.enumerated() {
-            let query = qualifier.isEmpty ? baseQuery : "\(baseQuery) \(qualifier)"
-            do {
-                let output = try await searchPullRequestIDs(query: query, account: account)
-                ids.append(contentsOf: output.value)
-                metadata.merge(output.metadata)
-            } catch {
-                if isAccessBlocking(error) || (index == 0 && repositoryQualifiers.count == 1) {
-                    throw error
-                }
-                metadata.record(error: error, warning: "pull-request search shard incomplete")
-            }
-        }
-        return OperationOutput(value: Array(Set(ids)), metadata: metadata)
     }
 
     private func searchPullRequestIDs(
@@ -454,39 +415,6 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         guard let transportError else { return false }
         return failure(for: transportError, fallback: .discovery) == .rateLimited
             || failure(for: transportError, fallback: .discovery) == .organizationAuthorizationRequired
-    }
-
-    private func makeRepositoryQualifiers(
-        scope: RepositoryScope,
-        repositoryCatalog: [RepositoryChoice],
-        metadata: inout MetadataAccumulator
-    ) -> [String] {
-        guard case let .selected(selectedRepositoryIDs) = scope else {
-            return [""]
-        }
-
-        let catalogByID = Dictionary(uniqueKeysWithValues: repositoryCatalog.map { ($0.id, $0) })
-        let selectedRepositories = selectedRepositoryIDs.compactMap { catalogByID[$0] }
-            .sorted { $0.nameWithOwner < $1.nameWithOwner }
-        if selectedRepositories.count != selectedRepositoryIDs.count {
-            metadata.warnings.append("some selected repositories are unavailable")
-        }
-        guard !selectedRepositories.isEmpty else { return [] }
-
-        var shards: [String] = []
-        var current = ""
-        for repository in selectedRepositories {
-            let qualifier = "repo:\(repository.nameWithOwner)"
-            let candidate = current.isEmpty ? qualifier : "\(current) \(qualifier)"
-            if candidate.count > 180, !current.isEmpty {
-                shards.append(current)
-                current = qualifier
-            } else {
-                current = candidate
-            }
-        }
-        if !current.isEmpty { shards.append(current) }
-        return shards
     }
 
     private func failure(for error: Error?, fallback: WorkloadFailure) -> WorkloadFailure {

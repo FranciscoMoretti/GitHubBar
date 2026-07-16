@@ -1,11 +1,7 @@
 import Foundation
 
 public protocol GitHubWorkloadClient: Sendable {
-    func reconcile(
-        account: ResolvedAccount,
-        repositoryScope: RepositoryScope,
-        previousSnapshot: WorkloadSnapshot?
-    ) async -> WorkloadReconciliationResult
+    func reconcile(account: ResolvedAccount) async -> WorkloadReconciliationResult
 }
 
 public enum WorkloadReconciliationResult: Sendable {
@@ -56,11 +52,7 @@ public struct ReconciliationMetadata: Equatable, Sendable {
 public struct UnavailableGitHubWorkloadClient: GitHubWorkloadClient {
     public init() {}
 
-    public func reconcile(
-        account: ResolvedAccount,
-        repositoryScope: RepositoryScope,
-        previousSnapshot: WorkloadSnapshot?
-    ) async -> WorkloadReconciliationResult {
+    public func reconcile(account: ResolvedAccount) async -> WorkloadReconciliationResult {
         .failed(.unavailable, .empty)
     }
 }

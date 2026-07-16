@@ -105,24 +105,15 @@ public actor WorkloadEngine {
             await restartRefreshTimer()
         case let .selectRepositoryScope(scope):
             guard state.repositoryScope != scope else { return }
-            invalidatePublication(clearPresentation: false)
             state.repositoryScope = scope
-            if let projectedSnapshot = currentSnapshot?.projected(to: scope) {
-                apply(projectedSnapshot)
-            } else {
-                state.waitingForReview = state.waitingForReview.filter { pullRequest in
-                    scope.includes(repositoryID: pullRequest.repositoryID)
-                }
-                state.authoredPullRequests = state.authoredPullRequests.filter { pullRequest in
-                    scope.includes(repositoryID: pullRequest.repositoryID)
-                }
+            if let currentSnapshot {
+                applyPresentation(from: currentSnapshot)
             }
             var currentSettings = await currentSettings()
             currentSettings.repositoryScope = scope
             settings = currentSettings
             await settingsStore.save(currentSettings)
             publish()
-            await requestReconciliation(trigger: .scopeChanged)
         case let .setRefreshCadence(cadence):
             var currentSettings = await currentSettings()
             currentSettings.refreshCadence = cadence
@@ -225,17 +216,12 @@ public actor WorkloadEngine {
     private func performReconciliation(trigger: ReconciliationTrigger) async {
         guard let account = resolvedAccount else { return }
         let reconciliationGeneration = generation
-        let scope = state.repositoryScope
         let previousSnapshot = currentSnapshot
         let start = ContinuousClock.now
         state.isRefreshing = true
         publish()
 
-        let result = await workloadClient.reconcile(
-            account: account,
-            repositoryScope: scope,
-            previousSnapshot: previousSnapshot
-        )
+        let result = await workloadClient.reconcile(account: account)
         let duration = start.duration(to: .now)
         guard reconciliationGeneration == generation else { return }
 
@@ -445,15 +431,23 @@ public actor WorkloadEngine {
 
     private func apply(_ snapshot: WorkloadSnapshot) {
         currentSnapshot = snapshot
+        applyPresentation(from: snapshot)
+    }
+
+    private func applyPresentation(from snapshot: WorkloadSnapshot) {
+        let scope = state.repositoryScope
         state.availableRepositories = snapshot.availableRepositories
-        state.waitingForReview = snapshot.waitingForReview
-        state.authoredPullRequests = snapshot.authoredPullRequests
+        state.waitingForReview = snapshot.waitingForReview.filter { pullRequest in
+            scope.includes(repositoryID: pullRequest.repositoryID)
+        }
+        state.authoredPullRequests = snapshot.authoredPullRequests.filter { pullRequest in
+            scope.includes(repositoryID: pullRequest.repositoryID)
+        }
         state.lastUpdatedAt = snapshot.capturedAt
     }
 
     private func restoreSnapshot(hostname: String, accountLogin: String) async {
-        guard let snapshot = try? await snapshotStore.load(hostname: hostname, accountLogin: accountLogin),
-              snapshot.repositoryScope == state.repositoryScope else {
+        guard let snapshot = try? await snapshotStore.load(hostname: hostname, accountLogin: accountLogin) else {
             return
         }
         apply(snapshot)

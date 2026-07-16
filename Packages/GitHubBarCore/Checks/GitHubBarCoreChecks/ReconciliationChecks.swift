@@ -317,7 +317,6 @@ enum ReconciliationChecks {
             accountLogin: "FranciscoMoretti",
             capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
             completeness: completeness,
-            repositoryScope: .all,
             availableRepositories: [RepositoryChoice(id: "REPO", nameWithOwner: "owner/repo")],
             waitingForReview: [],
             authoredPullRequests: ids.enumerated().map { index, id in
@@ -367,11 +366,7 @@ private actor ScriptedWorkloadClient: GitHubWorkloadClient {
         self.delay = delay
     }
 
-    func reconcile(
-        account: ResolvedAccount,
-        repositoryScope: RepositoryScope,
-        previousSnapshot: WorkloadSnapshot?
-    ) async -> WorkloadReconciliationResult {
+    func reconcile(account: ResolvedAccount) async -> WorkloadReconciliationResult {
         requestCount += 1
         concurrentRequests += 1
         maximumConcurrentRequests = max(maximumConcurrentRequests, concurrentRequests)
@@ -420,11 +415,7 @@ private struct RacingAccountConnection: AccountConnection {
 }
 
 private struct AccountEchoWorkloadClient: GitHubWorkloadClient {
-    func reconcile(
-        account: ResolvedAccount,
-        repositoryScope: RepositoryScope,
-        previousSnapshot: WorkloadSnapshot?
-    ) async -> WorkloadReconciliationResult {
+    func reconcile(account: ResolvedAccount) async -> WorkloadReconciliationResult {
         let pullRequest = PullRequestPresentation(
             id: account.login,
             repositoryID: "REPO",
@@ -442,7 +433,6 @@ private struct AccountEchoWorkloadClient: GitHubWorkloadClient {
                 accountLogin: account.login,
                 capturedAt: Date(),
                 completeness: .complete,
-                repositoryScope: repositoryScope,
                 availableRepositories: [],
                 waitingForReview: [],
                 authoredPullRequests: [pullRequest]

@@ -1,6 +1,8 @@
 import Foundation
 
 public struct WorkloadSnapshot: Codable, Equatable, Sendable {
+    public static let currentSchemaVersion = 2
+
     public enum Completeness: String, Codable, Equatable, Sendable {
         case complete
         case partial
@@ -11,18 +13,16 @@ public struct WorkloadSnapshot: Codable, Equatable, Sendable {
     public let accountLogin: String
     public let capturedAt: Date
     public let completeness: Completeness
-    public let repositoryScope: RepositoryScope
     public let availableRepositories: [RepositoryChoice]
     public let waitingForReview: [PullRequestPresentation]
     public let authoredPullRequests: [PullRequestPresentation]
 
     public init(
-        schemaVersion: Int = 1,
+        schemaVersion: Int = WorkloadSnapshot.currentSchemaVersion,
         hostname: String,
         accountLogin: String,
         capturedAt: Date,
         completeness: Completeness,
-        repositoryScope: RepositoryScope,
         availableRepositories: [RepositoryChoice],
         waitingForReview: [PullRequestPresentation],
         authoredPullRequests: [PullRequestPresentation]
@@ -32,7 +32,6 @@ public struct WorkloadSnapshot: Codable, Equatable, Sendable {
         self.accountLogin = accountLogin
         self.capturedAt = capturedAt
         self.completeness = completeness
-        self.repositoryScope = repositoryScope
         self.availableRepositories = availableRepositories
         self.waitingForReview = waitingForReview
         self.authoredPullRequests = authoredPullRequests
@@ -40,29 +39,10 @@ public struct WorkloadSnapshot: Codable, Equatable, Sendable {
 }
 
 public extension WorkloadSnapshot {
-    func projected(to repositoryScope: RepositoryScope) -> WorkloadSnapshot {
-        let includes: (PullRequestPresentation) -> Bool = { pullRequest in
-            repositoryScope.includes(repositoryID: pullRequest.repositoryID)
-        }
-
-        return WorkloadSnapshot(
-            schemaVersion: schemaVersion,
-            hostname: hostname,
-            accountLogin: accountLogin,
-            capturedAt: capturedAt,
-            completeness: .partial,
-            repositoryScope: repositoryScope,
-            availableRepositories: availableRepositories,
-            waitingForReview: waitingForReview.filter(includes),
-            authoredPullRequests: authoredPullRequests.filter(includes)
-        )
-    }
-
     func mergingConfirmedUpdates(into previous: WorkloadSnapshot?) -> WorkloadSnapshot {
         guard let previous,
               previous.hostname.caseInsensitiveCompare(hostname) == .orderedSame,
-              previous.accountLogin.caseInsensitiveCompare(accountLogin) == .orderedSame,
-              previous.repositoryScope == repositoryScope else {
+              previous.accountLogin.caseInsensitiveCompare(accountLogin) == .orderedSame else {
             return self
         }
 
@@ -88,7 +68,6 @@ public extension WorkloadSnapshot {
             accountLogin: accountLogin,
             capturedAt: capturedAt,
             completeness: .partial,
-            repositoryScope: repositoryScope,
             availableRepositories: repositoryByID.values.sorted { $0.nameWithOwner.localizedCaseInsensitiveCompare($1.nameWithOwner) == .orderedAscending },
             waitingForReview: mergedWaiting,
             authoredPullRequests: mergedAuthored

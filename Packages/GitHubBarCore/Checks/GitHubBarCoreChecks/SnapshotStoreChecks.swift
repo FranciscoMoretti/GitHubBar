@@ -32,12 +32,11 @@ enum SnapshotStoreChecks {
 
         let incompatibleStore = InMemorySnapshotStore(
             snapshot: WorkloadSnapshot(
-                schemaVersion: 2,
+                schemaVersion: WorkloadSnapshot.currentSchemaVersion + 1,
                 hostname: snapshot.hostname,
                 accountLogin: snapshot.accountLogin,
                 capturedAt: snapshot.capturedAt,
                 completeness: snapshot.completeness,
-                repositoryScope: snapshot.repositoryScope,
                 availableRepositories: snapshot.availableRepositories,
                 waitingForReview: snapshot.waitingForReview,
                 authoredPullRequests: snapshot.authoredPullRequests
@@ -50,6 +49,27 @@ enum SnapshotStoreChecks {
             // Expected.
         } catch {
             failures.append("FAILED: Incompatible Snapshot version reports the correct failure")
+        }
+
+        let legacyStore = InMemorySnapshotStore(
+            snapshot: WorkloadSnapshot(
+                schemaVersion: 1,
+                hostname: snapshot.hostname,
+                accountLogin: snapshot.accountLogin,
+                capturedAt: snapshot.capturedAt,
+                completeness: snapshot.completeness,
+                availableRepositories: snapshot.availableRepositories,
+                waitingForReview: snapshot.waitingForReview,
+                authoredPullRequests: snapshot.authoredPullRequests
+            )
+        )
+        do {
+            _ = try await legacyStore.load(hostname: "github.com", accountLogin: "FranciscoMoretti")
+            failures.append("FAILED: Legacy scope-bound Snapshot version is rejected")
+        } catch SnapshotStoreError.incompatibleVersion {
+            // Expected.
+        } catch {
+            failures.append("FAILED: Legacy Snapshot version reports the correct failure")
         }
 
         let memoryStore = InMemorySnapshotStore(snapshot: snapshot)
@@ -83,7 +103,6 @@ enum SnapshotStoreChecks {
             accountLogin: "FranciscoMoretti",
             capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
             completeness: .complete,
-            repositoryScope: .all,
             availableRepositories: [RepositoryChoice(id: "REPO", nameWithOwner: "owner/repo")],
             waitingForReview: [],
             authoredPullRequests: [

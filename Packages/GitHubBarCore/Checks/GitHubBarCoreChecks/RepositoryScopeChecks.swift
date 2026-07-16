@@ -33,7 +33,8 @@ enum RepositoryScopeChecks {
 
         let finalState = await recorder.values.last
         check(finalState?.repositoryScope == .selected(["REPO-1"]), "Latest Repository scope remains selected", failures: &failures)
-        check(finalState?.authoredPullRequests.map(\.id) == ["SCOPED"], "Stale prior-scope reconciliation cannot overwrite new scope", failures: &failures)
+        check(finalState?.authoredPullRequests.map(\.id) == ["IN-SCOPE"], "A completed reconciliation is projected through the latest Repository scope", failures: &failures)
+        check(await workloadClient.requestCount == 1, "A Repository scope change does not reconcile", failures: &failures)
         check(await settingsStore.load().repositoryScope == .selected(["REPO-1"]), "Repository scope persists", failures: &failures)
         return failures
     }
@@ -44,7 +45,6 @@ enum RepositoryScopeChecks {
             accountLogin: "FranciscoMoretti",
             capturedAt: Date(),
             completeness: .complete,
-            repositoryScope: .all,
             availableRepositories: [
                 RepositoryChoice(id: "REPO-1", nameWithOwner: "owner/one"),
                 RepositoryChoice(id: "REPO-2", nameWithOwner: "owner/two"),
@@ -77,6 +77,16 @@ enum RepositoryScopeChecks {
             try? await Task.sleep(for: .milliseconds(2))
         }
         let projectedState = await recorder.values.last(where: { $0.repositoryScope == .selected(["REPO-1"]) })
+        await engine.send(.selectRepositoryScope(.all))
+        for _ in 0..<50 {
+            if await recorder.values.contains(where: {
+                $0.repositoryScope == .all && $0.authoredPullRequests.count == 2
+            }) { break }
+            try? await Task.sleep(for: .milliseconds(2))
+        }
+        let allRepositoriesState = await recorder.values.last(where: {
+            $0.repositoryScope == .all && $0.authoredPullRequests.count == 2
+        })
         recording.cancel()
         await launch.value
 
@@ -89,6 +99,16 @@ enum RepositoryScopeChecks {
         check(
             projectedState?.reviewCount == 1,
             "A Repository scope change immediately constrains the review count",
+            failures: &failures
+        )
+        check(
+            projectedState?.isRefreshing == false,
+            "A Repository scope change does not enter a refreshing state",
+            failures: &failures
+        )
+        check(
+            allRepositoriesState?.authoredPullRequests.map(\.repositoryID) == ["REPO-1", "REPO-2"],
+            "Returning to all repositories restores the preserved account workload",
             failures: &failures
         )
         return failures
@@ -135,48 +155,53 @@ private struct ScopeAccountConnection: AccountConnection {
 }
 
 private actor RacingWorkloadClient: GitHubWorkloadClient {
-    private let startedStream: AsyncStream<RepositoryScope>
-    private let startedContinuation: AsyncStream<RepositoryScope>.Continuation
+    private let startedStream: AsyncStream<Void>
+    private let startedContinuation: AsyncStream<Void>.Continuation
+    private(set) var requestCount = 0
 
     init() {
-        (startedStream, startedContinuation) = AsyncStream.makeStream(of: RepositoryScope.self)
+        (startedStream, startedContinuation) = AsyncStream.makeStream(of: Void.self)
     }
 
-    func starts() -> AsyncStream<RepositoryScope> { startedStream }
+    func starts() -> AsyncStream<Void> { startedStream }
 
-    func reconcile(
-        account: ResolvedAccount,
-        repositoryScope: RepositoryScope,
-        previousSnapshot: WorkloadSnapshot?
-    ) async -> WorkloadReconciliationResult {
-        startedContinuation.yield(repositoryScope)
-        switch repositoryScope {
-        case .all:
-            try? await Task.sleep(for: .milliseconds(80))
-            return .complete(snapshot(id: "STALE", scope: .all), .empty)
-        case .selected:
-            try? await Task.sleep(for: .milliseconds(5))
-            return .complete(snapshot(id: "SCOPED", scope: repositoryScope), .empty)
-        }
+    func reconcile(account: ResolvedAccount) async -> WorkloadReconciliationResult {
+        requestCount += 1
+        startedContinuation.yield(())
+        try? await Task.sleep(for: .milliseconds(80))
+        return .complete(snapshot(), .empty)
     }
 
-    private func snapshot(id: String, scope: RepositoryScope) -> WorkloadSnapshot {
+    private func snapshot() -> WorkloadSnapshot {
         WorkloadSnapshot(
             hostname: "github.com",
             accountLogin: "FranciscoMoretti",
             capturedAt: Date(),
             completeness: .complete,
-            repositoryScope: scope,
-            availableRepositories: [RepositoryChoice(id: "REPO-1", nameWithOwner: "alaro-ai/alaro")],
+            availableRepositories: [
+                RepositoryChoice(id: "REPO-1", nameWithOwner: "alaro-ai/alaro"),
+                RepositoryChoice(id: "REPO-2", nameWithOwner: "alaro-ai/other"),
+            ],
             waitingForReview: [],
             authoredPullRequests: [
                 PullRequestPresentation(
-                    id: id,
+                    id: "IN-SCOPE",
                     repositoryID: "REPO-1",
                     repositoryNameWithOwner: "alaro-ai/alaro",
                     number: 1,
-                    title: id,
+                    title: "In scope",
                     url: URL(string: "https://github.com/alaro-ai/alaro/pull/1")!,
+                    isDraft: false,
+                    updatedAt: Date(),
+                    reviewers: []
+                ),
+                PullRequestPresentation(
+                    id: "OUT-OF-SCOPE",
+                    repositoryID: "REPO-2",
+                    repositoryNameWithOwner: "alaro-ai/other",
+                    number: 2,
+                    title: "Out of scope",
+                    url: URL(string: "https://github.com/alaro-ai/other/pull/2")!,
                     isDraft: false,
                     updatedAt: Date(),
                     reviewers: []

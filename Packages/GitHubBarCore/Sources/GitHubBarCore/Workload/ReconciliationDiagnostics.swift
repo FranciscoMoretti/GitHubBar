@@ -7,7 +7,6 @@ public enum ReconciliationTrigger: String, Sendable {
     case popoverOpen
     case scheduled
     case accountChanged
-    case scopeChanged
     case rateLimitRetry
 }
 
