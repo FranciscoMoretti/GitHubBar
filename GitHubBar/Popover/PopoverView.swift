@@ -21,10 +21,6 @@ struct PopoverView: View {
                     LazyVStack(spacing: 0) {
                         if isInitialLoading {
                             InitialWorkloadLoadingView()
-                        } else if let banner = RefreshHealthBanner.Model(state: appModel.state) {
-                            RefreshHealthBanner(model: banner) {
-                                appModel.send(.manualRefresh)
-                            }
                         }
                         if case let .connected(_, accessCoverage) = appModel.state.accountConnection,
                            !accessCoverage.isComplete {
@@ -41,7 +37,8 @@ struct PopoverView: View {
                                 title: "My PRs",
                                 pullRequests: appModel.state.authoredPullRequests,
                                 emptyMessage: "You have no open pull requests.",
-                                showsRepository: showsRepositoryInRows
+                                showsRepository: showsRepositoryInRows,
+                                showsBottomDivider: false
                             )
                         }
                     }
@@ -68,7 +65,8 @@ struct PopoverView: View {
                     .font(.system(size: 14, weight: .bold))
                 Text(updatedLabel)
                     .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(updatedLabelColor)
+                    .help(updatedLabelHelp)
                     .accessibilityLabel("Refresh status: \(updatedLabel)")
             }
             Spacer(minLength: 8)
@@ -121,10 +119,41 @@ struct PopoverView: View {
         if appModel.state.isRefreshing { return "Refreshing…" }
         guard let lastUpdatedAt = appModel.state.lastUpdatedAt else { return "Ready" }
         switch appModel.state.refreshHealth {
-        case .restoredSnapshot, .partial, .failed, .rateLimited:
+        case .restoredSnapshot:
             return "Snapshot \(lastUpdatedAt.formatted(.relative(presentation: .named)))"
+        case .partial:
+            return "Partial update · \(lastUpdatedAt.formatted(.relative(presentation: .named)))"
+        case .failed:
+            return "Refresh failed · \(lastUpdatedAt.formatted(.relative(presentation: .named)))"
+        case .rateLimited:
+            return "Rate limited · \(lastUpdatedAt.formatted(.relative(presentation: .named)))"
         case .idle, .fresh:
             return "Updated \(lastUpdatedAt.formatted(.relative(presentation: .named)))"
+        }
+    }
+
+    private var updatedLabelColor: Color {
+        switch appModel.state.refreshHealth {
+        case .partial, .rateLimited:
+            .orange
+        case .failed:
+            .red
+        case .idle, .restoredSnapshot, .fresh:
+            .secondary
+        }
+    }
+
+    private var updatedLabelHelp: String {
+        switch appModel.state.refreshHealth {
+        case .idle, .fresh:
+            "The active workload is up to date."
+        case .restoredSnapshot:
+            "Showing the saved Snapshot while GitHubBar reconciles in the background."
+        case let .partial(message), let .failed(message):
+            message
+        case let .rateLimited(until):
+            until.map { "GitHubBar will retry after \($0.formatted(date: .omitted, time: .shortened))." }
+                ?? "GitHubBar will retry automatically."
         }
     }
 
@@ -171,100 +200,6 @@ private struct InitialWorkloadLoadingView: View {
                 .frame(maxWidth: 250)
         }
         .frame(maxWidth: .infinity, minHeight: 250)
-        .accessibilityElement(children: .combine)
-    }
-}
-
-private struct RefreshHealthBanner: View {
-    struct Model {
-        let icon: String
-        let title: String
-        let detail: String
-        let tint: Color
-        let showsProgress: Bool
-        let offersRetry: Bool
-
-        init?(state: AppPresentationState) {
-            if state.isRefreshing, state.lastUpdatedAt != nil {
-                icon = "arrow.clockwise"
-                title = "Refreshing"
-                detail = "Showing your current list while GitHub updates it."
-                tint = .secondary
-                showsProgress = true
-                offersRetry = false
-                return
-            }
-
-            switch state.refreshHealth {
-            case .restoredSnapshot:
-                icon = "clock.arrow.circlepath"
-                title = "Showing saved Snapshot"
-                detail = "GitHubBar will reconcile this list in the background."
-                tint = .secondary
-                showsProgress = false
-                offersRetry = false
-            case let .partial(message):
-                icon = "exclamationmark.triangle"
-                title = "Some data may be stale"
-                detail = message
-                tint = .yellow
-                showsProgress = false
-                offersRetry = true
-            case let .rateLimited(until):
-                icon = "hourglass"
-                title = "GitHub rate limit reached"
-                detail = until.map { "Automatic retry after \($0.formatted(date: .omitted, time: .shortened))." }
-                    ?? "GitHubBar will retry automatically."
-                tint = .orange
-                showsProgress = false
-                offersRetry = false
-            case let .failed(message):
-                icon = "wifi.exclamationmark"
-                title = "Refresh failed"
-                detail = message + " Your previous list is still shown."
-                tint = .red
-                showsProgress = false
-                offersRetry = true
-            case .idle, .fresh:
-                return nil
-            }
-        }
-    }
-
-    let model: Model
-    let retry: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            if model.showsProgress {
-                ProgressView().controlSize(.mini)
-            } else {
-                Image(systemName: model.icon)
-                    .foregroundStyle(model.tint)
-                    .frame(width: 13)
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.title)
-                    .font(.system(size: 10.5, weight: .semibold))
-                Text(model.detail)
-                    .font(.system(size: 9.5))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 4)
-            if model.offersRetry {
-                Button("Retry", action: retry)
-                    .buttonStyle(.plain)
-                    .font(.system(size: 9.5, weight: .semibold))
-                    .foregroundStyle(.tint)
-            }
-        }
-        .padding(9)
-        .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 7))
-        .overlay {
-            RoundedRectangle(cornerRadius: 7).stroke(.white.opacity(0.10))
-        }
-        .padding(.top, 7)
         .accessibilityElement(children: .combine)
     }
 }

@@ -6,6 +6,7 @@ struct WorkloadSection: View {
     let pullRequests: [PullRequestPresentation]
     let emptyMessage: String
     let showsRepository: Bool
+    var showsBottomDivider = true
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 4) {
@@ -32,7 +33,9 @@ struct WorkloadSection: View {
             }
         }
         .padding(.vertical, 11)
-        .overlay(alignment: .bottom) { Divider() }
+        .overlay(alignment: .bottom) {
+            if showsBottomDivider { Divider() }
+        }
         .accessibilityElement(children: .contain)
     }
 }

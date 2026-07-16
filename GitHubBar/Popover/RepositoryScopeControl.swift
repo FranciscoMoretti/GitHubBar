@@ -48,7 +48,10 @@ struct RepositoryScopeControl: View {
         .padding(.horizontal, style == .popover ? 18 : 0)
         .frame(height: style == .popover ? 34 : 40)
         .accessibilityLabel("Choose repositories. Current selection: \(scopeLabel)")
-        .popover(isPresented: $isPickerPresented, arrowEdge: .top) {
+        .popover(
+            isPresented: $isPickerPresented,
+            arrowEdge: style == .popover ? .leading : .top
+        ) {
             RepositoryPicker(
                 repositories: appModel.state.availableRepositories,
                 currentScope: appModel.state.repositoryScope
