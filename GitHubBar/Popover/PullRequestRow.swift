@@ -99,19 +99,10 @@ private struct ReviewerAvatar: View {
     let reviewer: ReviewerPresentation
 
     var body: some View {
-        Group {
-            if let avatarURL = reviewer.avatarURL {
-                AsyncImage(url: avatarURL) { phase in
-                    if case let .success(image) = phase {
-                        image.resizable().scaledToFill()
-                    } else {
-                        fallback
-                    }
-                }
-            } else {
-                fallback
-            }
-        }
+        IdentityAvatarImage(
+            displayName: reviewer.displayName,
+            avatarURL: reviewer.avatarURL
+        )
         .frame(width: 16, height: 16)
         .clipShape(reviewer.kind == .team ? AnyShape(RoundedRectangle(cornerRadius: 4.5)) : AnyShape(Circle()))
         .overlay {
@@ -122,23 +113,5 @@ private struct ReviewerAvatar: View {
             }
         }
         .help(reviewer.displayName)
-    }
-
-    private var fallback: some View {
-        Text(initials)
-            .font(.system(size: 6, weight: .bold))
-            .foregroundStyle(.primary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(.regularMaterial)
-    }
-
-    private var initials: String {
-        reviewer.displayName
-            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-            .prefix(2)
-            .compactMap(\.first)
-            .map(String.init)
-            .joined()
-            .uppercased()
     }
 }

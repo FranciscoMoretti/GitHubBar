@@ -28,6 +28,7 @@
 		D48F19C02711831D9678C4D1 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = F6E61A749B9AF8CCF4DDD2D6 /* Sparkle */; };
 		DE1ED625BE58BCFBBAF98CC9 /* WorkloadSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9BBAE50AD7E339CECA2EAA2 /* WorkloadSection.swift */; };
 		E4D2AA6C419BAA7A57217BE8 /* StatusItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A08B252F35CACF12F8B1CA03 /* StatusItemController.swift */; };
+		EA70C75EAE03957D64C8A89A /* IdentityAvatarImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC8F49D83D230FB079EF27B2 /* IdentityAvatarImage.swift */; };
 		F751EBF210E1E91BB7E0B863 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A06FCA62CDE78A733A5E75 /* AppModel.swift */; };
 /* End PBXBuildFile section */
 
@@ -63,6 +64,7 @@
 		B6CF0FB24B12896466FD2E72 /* PullRequestRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PullRequestRow.swift; sourceTree = "<group>"; };
 		B84D614FD57185277F2F77F2 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		C39E485BC4A03542878D61F2 /* UpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateController.swift; sourceTree = "<group>"; };
+		CC8F49D83D230FB079EF27B2 /* IdentityAvatarImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityAvatarImage.swift; sourceTree = "<group>"; };
 		D15FD62343E9B992072D0358 /* GitHubBar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GitHubBar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D582835D6F15750A7B876847 /* RepositoryScopeControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryScopeControl.swift; sourceTree = "<group>"; };
 		DD9F73DA43CC365AD4AB94DE /* SparkleUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdateController.swift; sourceTree = "<group>"; };
@@ -145,6 +147,7 @@
 				1ED7C47E351A59C890B995F7 /* Popover */,
 				20A4EFFF5F8C522C34BE351C /* Resources */,
 				1DE02AB997A254889A3EA47C /* Settings */,
+				664BF2130F661C37F664BE8B /* Shared */,
 				510DF463139BB7332C9A1393 /* StatusItem */,
 				FB7B75FB3ED8350CA3FFC76A /* Updates */,
 			);
@@ -159,6 +162,14 @@
 				48506E36134F710544DC49CA /* StatusItemMenu.swift */,
 			);
 			path = StatusItem;
+			sourceTree = "<group>";
+		};
+		664BF2130F661C37F664BE8B /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				CC8F49D83D230FB079EF27B2 /* IdentityAvatarImage.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		96DF2C70DB1C6ECCF2CE1A7C /* App */ = {
@@ -285,6 +296,7 @@
 				AC9E4DF525406EC58650E413 /* AppDelegate.swift in Sources */,
 				F751EBF210E1E91BB7E0B863 /* AppModel.swift in Sources */,
 				4E861E74CE10041FA7DDD5C3 /* ApplicationMenuController.swift in Sources */,
+				EA70C75EAE03957D64C8A89A /* IdentityAvatarImage.swift in Sources */,
 				65679A108BD941742103A172 /* MacLaunchAtLoginController.swift in Sources */,
 				17D216F8F91FE77B7AE0AD34 /* Main.swift in Sources */,
 				981043800D9A3D281B9FB819 /* MenuActionRow.swift in Sources */,

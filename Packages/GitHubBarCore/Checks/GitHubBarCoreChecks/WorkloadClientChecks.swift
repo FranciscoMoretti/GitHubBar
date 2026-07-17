@@ -22,6 +22,15 @@ enum WorkloadClientChecks {
         check(snapshot.needsYourReview.map(\.id) == ["PR-1", "PR-2"], "Direct and team review requests deduplicate", failures: &failures)
         check(snapshot.authoredPullRequests.map(\.id) == ["PR-3"], "Authored pull requests are separate", failures: &failures)
         check(
+            snapshot.needsYourReview.first?.author == PullRequestAuthorPresentation(
+                id: "user:alice",
+                displayName: "alice",
+                avatarURL: URL(string: "https://avatars.example/alice.png")
+            ),
+            "Pull-request author identity and avatar hydrate",
+            failures: &failures
+        )
+        check(
             snapshot.authoredPullRequests.first?.isDraft == true,
             "Drafts remain in the Authored pull-request workload",
             failures: &failures
@@ -367,13 +376,13 @@ private actor WorkloadFixtureTransport: GitHubTransport {
         return #"{"data":{"search":{"nodes":[\#(nodes)],"pageInfo":{"hasNextPage":false,"endCursor":null}},"rateLimit":{"cost":1,"remaining":4997,"resetAt":"2026-07-15T20:00:00Z"}}}"#
     }
 
-    private static let hydrationResponse = #"{"data":{"nodes":[{"id":"PR-1","number":1,"title":"Direct review","url":"https://github.com/alaro-ai/app/pull/1","isDraft":false,"state":"OPEN","updatedAt":"2026-07-15T12:00:00Z","author":{"login":"alice"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"User","login":"FranciscoMoretti","avatarUrl":null}},{"requestedReviewer":{"__typename":"User","login":"alice","avatarUrl":null}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[{"author":{"login":"bob","avatarUrl":null}}],"pageInfo":{"hasNextPage":false,"endCursor":null}}},{"id":"PR-2","number":2,"title":"Team review","url":"https://github.com/alaro-ai/app/pull/2","isDraft":false,"state":"OPEN","updatedAt":"2026-07-15T13:00:00Z","author":{"login":"carol"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"Team","name":"devs","slug":"devs","avatarUrl":null,"organization":{"login":"alaro-ai"}}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}},{"id":"PR-3","number":3,"title":"My draft","url":"https://github.com/alaro-ai/app/pull/3","isDraft":true,"state":"OPEN","updatedAt":"2026-07-15T14:00:00Z","author":{"login":"FranciscoMoretti"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"User","login":"alice","avatarUrl":null}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}],"rateLimit":{"cost":1,"remaining":4996,"resetAt":"2026-07-15T20:00:00Z"}}}"#
+    private static let hydrationResponse = #"{"data":{"nodes":[{"id":"PR-1","number":1,"title":"Direct review","url":"https://github.com/alaro-ai/app/pull/1","isDraft":false,"state":"OPEN","updatedAt":"2026-07-15T12:00:00Z","author":{"login":"alice","avatarUrl":"https://avatars.example/alice.png"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"User","login":"FranciscoMoretti","avatarUrl":null}},{"requestedReviewer":{"__typename":"User","login":"alice","avatarUrl":null}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[{"author":{"login":"bob","avatarUrl":null}}],"pageInfo":{"hasNextPage":false,"endCursor":null}}},{"id":"PR-2","number":2,"title":"Team review","url":"https://github.com/alaro-ai/app/pull/2","isDraft":false,"state":"OPEN","updatedAt":"2026-07-15T13:00:00Z","author":{"login":"carol"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"Team","name":"devs","slug":"devs","avatarUrl":null,"organization":{"login":"alaro-ai"}}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}},{"id":"PR-3","number":3,"title":"My draft","url":"https://github.com/alaro-ai/app/pull/3","isDraft":true,"state":"OPEN","updatedAt":"2026-07-15T14:00:00Z","author":{"login":"FranciscoMoretti"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"User","login":"alice","avatarUrl":null}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}],"rateLimit":{"cost":1,"remaining":4996,"resetAt":"2026-07-15T20:00:00Z"}}}"#
 
     private static var largeRosterHydrationResponse: String {
         let reviewers = (["FranciscoMoretti"] + (1..<100).map { "reviewer-\($0)" })
             .map { #"{"requestedReviewer":{"__typename":"User","login":"\#($0)","avatarUrl":null}}"# }
             .joined(separator: ",")
-        return #"{"data":{"nodes":[{"id":"PR-1","number":1,"title":"Large roster","url":"https://github.com/alaro-ai/app/pull/1","isDraft":false,"state":"OPEN","updatedAt":"2026-07-15T12:00:00Z","author":{"login":"alice"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[\#(reviewers)],"pageInfo":{"hasNextPage":true,"endCursor":"next"}},"reviews":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}],"rateLimit":{"cost":1,"remaining":4996,"resetAt":"2026-07-15T20:00:00Z"}}}"#
+        return #"{"data":{"nodes":[{"id":"PR-1","number":1,"title":"Large roster","url":"https://github.com/alaro-ai/app/pull/1","isDraft":false,"state":"OPEN","updatedAt":"2026-07-15T12:00:00Z","author":{"login":"alice","avatarUrl":"https://avatars.example/alice.png"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[\#(reviewers)],"pageInfo":{"hasNextPage":true,"endCursor":"next"}},"reviews":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}],"rateLimit":{"cost":1,"remaining":4996,"resetAt":"2026-07-15T20:00:00Z"}}}"#
     }
 
     private enum FixtureError: Error {

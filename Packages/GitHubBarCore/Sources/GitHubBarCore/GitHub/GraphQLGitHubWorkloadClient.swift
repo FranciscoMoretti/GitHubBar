@@ -109,7 +109,7 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
 
         let authoredPullRequests = authoredDiscoveryIDs.compactMap { id -> PullRequestPresentation? in
             guard let record = recordsByID[id],
-                  record.authorLogin.caseInsensitiveCompare(account.login) == .orderedSame else {
+                  record.author.displayName.caseInsensitiveCompare(account.login) == .orderedSame else {
                 return nil
             }
             return record.presentation
@@ -509,7 +509,7 @@ private extension GraphQLGitHubWorkloadClient {
           reviewDecision
           state
           updatedAt
-          author { login }
+          author { login avatarUrl }
           repository { id nameWithOwner }
           reviewRequests(first: 100) {
             nodes {
@@ -880,7 +880,7 @@ private struct HydratedRecord: Sendable {
     let id: String
     let repositoryID: String
     let repositoryNameWithOwner: String
-    let authorLogin: String
+    let author: PullRequestAuthorPresentation
     let isDraft: Bool
     let reviewDecision: PullRequestReviewDecision?
     let number: Int
@@ -903,7 +903,7 @@ private struct HydratedRecord: Sendable {
         id = dto.id
         repositoryID = dto.repository.id
         repositoryNameWithOwner = dto.repository.nameWithOwner
-        authorLogin = author.login
+        self.author = author.pullRequestAuthorPresentation
         isDraft = dto.isDraft
         reviewDecision = dto.reviewDecision.flatMap(PullRequestReviewDecision.init(rawValue:))
         number = dto.number
@@ -941,6 +941,7 @@ private struct HydratedRecord: Sendable {
             title: title,
             url: url,
             isDraft: isDraft,
+            author: author,
             reviewDecision: reviewDecision,
             updatedAt: updatedAt,
             requestedReviewers: requestedReviewerPresentations,
@@ -988,6 +989,14 @@ private extension RequestedReviewerDTO {
 }
 
 private extension ActorDTO {
+    var pullRequestAuthorPresentation: PullRequestAuthorPresentation {
+        PullRequestAuthorPresentation(
+            id: "user:\(login.lowercased())",
+            displayName: login,
+            avatarURL: avatarURL.flatMap(URL.init(string:))
+        )
+    }
+
     var reviewerPresentation: ReviewerPresentation {
         ReviewerPresentation(
             id: "user:\(login.lowercased())",

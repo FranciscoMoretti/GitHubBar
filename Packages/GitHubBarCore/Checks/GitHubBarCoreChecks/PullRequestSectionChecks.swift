@@ -64,8 +64,8 @@ enum PullRequestSectionChecks {
             return
         }
         check(
-            decoded.requestedReviewers == nil && decoded.authoredSection == nil,
-            "Legacy snapshots preserve unknown Outstanding review-request state",
+            decoded.requestedReviewers == nil && decoded.authoredSection == nil && decoded.author == nil,
+            "Legacy snapshots preserve unknown review-request state and missing author identity",
             failures: &failures
         )
     }

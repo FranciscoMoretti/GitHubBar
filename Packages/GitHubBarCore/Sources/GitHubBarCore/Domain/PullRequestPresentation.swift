@@ -8,6 +8,7 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
     public let title: String
     public let url: URL
     public let isDraft: Bool
+    public let author: PullRequestAuthorPresentation?
     public let reviewDecision: PullRequestReviewDecision?
     public let updatedAt: Date
     public let requestedReviewers: [ReviewerPresentation]?
@@ -21,6 +22,7 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
         title: String,
         url: URL,
         isDraft: Bool,
+        author: PullRequestAuthorPresentation? = nil,
         reviewDecision: PullRequestReviewDecision? = nil,
         updatedAt: Date,
         requestedReviewers: [ReviewerPresentation]? = [],
@@ -33,6 +35,7 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
         self.title = title
         self.url = url
         self.isDraft = isDraft
+        self.author = author
         self.reviewDecision = reviewDecision
         self.updatedAt = updatedAt
         self.requestedReviewers = requestedReviewers
@@ -53,7 +56,7 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, repositoryID, repositoryNameWithOwner, number, title, url, isDraft
+        case id, repositoryID, repositoryNameWithOwner, number, title, url, isDraft, author
         case reviewDecision, updatedAt, requestedReviewers, reviewers
     }
 
@@ -66,6 +69,7 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
         title = try container.decode(String.self, forKey: .title)
         url = try container.decode(URL.self, forKey: .url)
         isDraft = try container.decode(Bool.self, forKey: .isDraft)
+        author = try container.decodeIfPresent(PullRequestAuthorPresentation.self, forKey: .author)
         reviewDecision = try container.decodeIfPresent(PullRequestReviewDecision.self, forKey: .reviewDecision)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         reviewers = try container.decode([ReviewerPresentation].self, forKey: .reviewers)
@@ -73,6 +77,18 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
             [ReviewerPresentation].self,
             forKey: .requestedReviewers
         )
+    }
+}
+
+public struct PullRequestAuthorPresentation: Codable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let displayName: String
+    public let avatarURL: URL?
+
+    public init(id: String, displayName: String, avatarURL: URL?) {
+        self.id = id
+        self.displayName = displayName
+        self.avatarURL = avatarURL
     }
 }
 

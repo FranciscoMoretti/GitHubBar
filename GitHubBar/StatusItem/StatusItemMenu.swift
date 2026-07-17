@@ -233,10 +233,11 @@ extension StatusItemController: NSMenuDelegate {
     }
 
     private func accessibilityLabel(for pullRequest: PullRequestPresentation) -> String {
+        let author = pullRequest.author.map { "Author: \($0.displayName). " } ?? ""
         let reviewerNames = pullRequest.reviewers.map(\.displayName).joined(separator: ", ")
         let reviewers = reviewerNames.isEmpty ? "No reviewers" : "Reviewers: \(reviewerNames)"
         return "\(pullRequest.repositoryNameWithOwner) number \(pullRequest.number), " +
-            "\(pullRequest.title). \(reviewers)."
+            "\(pullRequest.title). \(author)\(reviewers)."
     }
 
     private func open(_ url: URL) {
@@ -304,7 +305,7 @@ extension StatusItemController: NSMenuDelegate {
         NSApp.terminate(nil)
     }
 
-    private static let menuWidth: CGFloat = 390
+    private static let menuWidth: CGFloat = 560
     private static let pullRequestRowHeight: CGFloat = 25
     private static let pullRequestLimit = 5
 }
@@ -419,9 +420,12 @@ private struct StatusMenuPullRequestRow: View {
 
     var body: some View {
         HStack(spacing: 7) {
+            StatusMenuAuthorAvatar(author: pullRequest.author)
             Text("#\(String(pullRequest.number)): \(pullRequest.title)")
                 .font(.system(size: 12))
                 .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(1)
             Spacer(minLength: 4)
             if !pullRequest.reviewers.isEmpty {
                 ReviewerRosterView(reviewers: pullRequest.reviewers)
@@ -437,6 +441,22 @@ private struct StatusMenuPullRequestRow: View {
         }
         .contentShape(Rectangle())
         .environment(\.colorScheme, .dark)
+    }
+}
+
+private struct StatusMenuAuthorAvatar: View {
+    let author: PullRequestAuthorPresentation?
+
+    var body: some View {
+        IdentityAvatarImage(
+            displayName: author?.displayName,
+            avatarURL: author?.avatarURL
+        )
+        .frame(width: 16, height: 16)
+        .clipShape(Circle())
+        .overlay { Circle().stroke(.black.opacity(0.45), lineWidth: 1) }
+        .help(author.map { "Author: \($0.displayName)" } ?? "Author unavailable")
+        .accessibilityHidden(true)
     }
 }
 
