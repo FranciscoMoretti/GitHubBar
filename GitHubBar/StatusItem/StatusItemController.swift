@@ -38,11 +38,27 @@ final class StatusItemController: NSObject {
         popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         popover.contentSize = NSSize(
             width: PopoverView.preferredWidth,
-            height: PopoverView.preferredHeight
+            height: PopoverView.fallbackHeight
         )
         popover.contentViewController = NSHostingController(
             rootView: PopoverView(appModel: appModel, actions: actions)
         )
+    }
+
+    private func resizePopover(for button: NSStatusBarButton) {
+        let visibleScreenHeight = button.window?.screen?.visibleFrame.height
+            ?? NSScreen.main?.visibleFrame.height
+        popover.contentSize = NSSize(
+            width: PopoverView.preferredWidth,
+            height: PopoverView.resolvedHeight(forVisibleScreenHeight: visibleScreenHeight)
+        )
+    }
+
+    private func openPopover(relativeTo button: NSStatusBarButton) {
+        resizePopover(for: button)
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
+        appModel.send(.setPopoverOpen(true))
     }
 
     private func apply(_ state: AppPresentationState) {
@@ -58,16 +74,12 @@ final class StatusItemController: NSObject {
             popover.performClose(nil)
             appModel.send(.setPopoverOpen(false))
         } else {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            popover.contentViewController?.view.window?.makeKey()
-            appModel.send(.setPopoverOpen(true))
+            openPopover(relativeTo: button)
         }
     }
 
     func showPopover() {
         guard !popover.isShown, let button = statusItem.button else { return }
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover.contentViewController?.view.window?.makeKey()
-        appModel.send(.setPopoverOpen(true))
+        openPopover(relativeTo: button)
     }
 }

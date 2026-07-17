@@ -4,8 +4,18 @@ import SwiftUI
 
 struct PopoverView: View {
     static let preferredWidth: CGFloat = 364
-    static let preferredHeight: CGFloat = 700
-    static let maximumHeight: CGFloat = 760
+    static let fallbackHeight: CGFloat = 700
+    static let minimumResponsiveHeight: CGFloat = 640
+    static let maximumHeight: CGFloat = 900
+    static let screenEdgeClearance: CGFloat = 120
+
+    static func resolvedHeight(forVisibleScreenHeight visibleScreenHeight: CGFloat?) -> CGFloat {
+        guard let visibleScreenHeight else { return Self.fallbackHeight }
+        return min(
+            Self.maximumHeight,
+            max(Self.minimumResponsiveHeight, floor(visibleScreenHeight - Self.screenEdgeClearance))
+        )
+    }
 
     @Bindable var appModel: AppModel
     let actions: AppActions
@@ -58,7 +68,7 @@ struct PopoverView: View {
             footer
         }
         .frame(width: Self.preferredWidth)
-        .frame(minHeight: 470, idealHeight: Self.preferredHeight, maxHeight: Self.maximumHeight)
+        .frame(minHeight: 470, idealHeight: Self.fallbackHeight, maxHeight: Self.maximumHeight)
         .background(VisualEffectBackground())
         .environment(\.colorScheme, .dark)
     }

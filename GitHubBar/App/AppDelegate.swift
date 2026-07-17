@@ -67,12 +67,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showVisualValidationWindow(appModel: AppModel, actions: AppActions) {
+        let height = PopoverView.resolvedHeight(
+            forVisibleScreenHeight: NSScreen.main?.visibleFrame.height
+        )
         let window = NSWindow(
             contentRect: NSRect(
                 x: 0,
                 y: 0,
                 width: PopoverView.preferredWidth,
-                height: PopoverView.preferredHeight
+                height: height
             ),
             styleMask: [.titled, .closable],
             backing: .buffered,
