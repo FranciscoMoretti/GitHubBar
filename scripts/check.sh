@@ -21,5 +21,17 @@ rg --files GitHubBar -g '*.swift' -0 | xargs -0 swiftc \
   -sdk "$sdk_path" \
   -I "$module_path"
 
+mkdir -p .build/checks
+swiftc \
+  -parse-as-library \
+  -swift-version 6 \
+  -strict-concurrency=complete \
+  GitHubBar/Shared/AvatarImageCache.swift \
+  GitHubBarChecks/AvatarImageCacheCheck.swift \
+  -framework AppKit \
+  -framework Combine \
+  -o .build/checks/avatar-image-cache-check
+.build/checks/avatar-image-cache-check
+
 plutil -lint GitHubBar/Resources/Info.plist
 xcodegen generate

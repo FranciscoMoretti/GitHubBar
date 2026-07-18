@@ -35,7 +35,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             openSettings: { [weak settingsWindowController] in settingsWindowController?.show() },
             openAbout: { [weak settingsWindowController] in settingsWindowController?.showAbout() }
         )
-        let statusItemController = StatusItemController(appModel: model, actions: actions)
+        let statusItemController = StatusItemController(
+            appModel: model,
+            actions: actions,
+            avatarImageCache: AvatarImageCache()
+        )
         let applicationMenuController = ApplicationMenuController(appModel: model, actions: actions)
         applicationMenuController.install()
 

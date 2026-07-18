@@ -3,19 +3,23 @@ import SwiftUI
 struct IdentityAvatarImage: View {
     let displayName: String?
     let avatarURL: URL?
+    @EnvironmentObject private var cache: AvatarImageCache
 
     var body: some View {
         Group {
-            if let avatarURL {
-                AsyncImage(url: avatarURL) { phase in
-                    if case let .success(image) = phase {
-                        image.resizable().scaledToFill()
-                    } else {
-                        fallback
-                    }
-                }
+            if let avatarURL, let image = cache.image(for: avatarURL) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
             } else {
                 fallback
+            }
+        }
+        .onAppear {
+            if let avatarURL {
+                Task {
+                    await cache.preload([avatarURL])
+                }
             }
         }
     }

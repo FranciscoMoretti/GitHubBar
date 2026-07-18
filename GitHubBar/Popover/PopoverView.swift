@@ -19,10 +19,16 @@ struct PopoverView: View {
 
     @Bindable var appModel: AppModel
     let actions: AppActions
+    let avatarImageCache: AvatarImageCache
 
-    init(appModel: AppModel, actions: AppActions = AppActions()) {
+    init(
+        appModel: AppModel,
+        actions: AppActions = AppActions(),
+        avatarImageCache: AvatarImageCache
+    ) {
         self.appModel = appModel
         self.actions = actions
+        self.avatarImageCache = avatarImageCache
     }
 
     var body: some View {
@@ -70,6 +76,7 @@ struct PopoverView: View {
         .frame(width: Self.preferredWidth)
         .frame(minHeight: 470, idealHeight: Self.fallbackHeight, maxHeight: Self.maximumHeight)
         .background(VisualEffectBackground())
+        .environmentObject(avatarImageCache)
         .environment(\.colorScheme, .dark)
     }
 

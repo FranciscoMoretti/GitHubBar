@@ -22,6 +22,7 @@
 		A9BA698E6D882DD71A2D7480 /* UpdateControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9813F72CF2F4CB20333095 /* UpdateControllerTests.swift */; };
 		A9EFD432CF5BB3454F211213 /* SparkleUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD9F73DA43CC365AD4AB94DE /* SparkleUpdateController.swift */; };
 		AC9E4DF525406EC58650E413 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FCA7F94A99E37FDFC8C9470 /* AppDelegate.swift */; };
+		B172F00F0C2EC95745C3DF43 /* AvatarImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 802629216ED5CE8877D7837C /* AvatarImageCache.swift */; };
 		B5EB0FFF8FE8ACFF9C185652 /* PullRequestRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6CF0FB24B12896466FD2E72 /* PullRequestRow.swift */; };
 		C0EFC1B2F18736A240AC0F16 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC54AA23EDF526A120E685B /* SettingsView.swift */; };
 		C4365C499C9F8EFB21D56CBC /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38380275717FD18A95869865 /* PopoverView.swift */; };
@@ -56,6 +57,7 @@
 		685E6864EC15CF08046AF835 /* AccountConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountConnectionView.swift; sourceTree = "<group>"; };
 		6FCA7F94A99E37FDFC8C9470 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		78AE4A990C81D192A301DE12 /* MenuActionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuActionRow.swift; sourceTree = "<group>"; };
+		802629216ED5CE8877D7837C /* AvatarImageCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarImageCache.swift; sourceTree = "<group>"; };
 		8A914524DE738D5B82F7761E /* Main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Main.swift; sourceTree = "<group>"; };
 		995B46C428EA3A7FD5CFB7E0 /* GitHubBarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GitHubBarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9DC54AA23EDF526A120E685B /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -169,6 +171,7 @@
 		664BF2130F661C37F664BE8B /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				802629216ED5CE8877D7837C /* AvatarImageCache.swift */,
 				CC8F49D83D230FB079EF27B2 /* IdentityAvatarImage.swift */,
 			);
 			path = Shared;
@@ -299,6 +302,7 @@
 				AC9E4DF525406EC58650E413 /* AppDelegate.swift in Sources */,
 				F751EBF210E1E91BB7E0B863 /* AppModel.swift in Sources */,
 				4E861E74CE10041FA7DDD5C3 /* ApplicationMenuController.swift in Sources */,
+				B172F00F0C2EC95745C3DF43 /* AvatarImageCache.swift in Sources */,
 				613BD46ADBAE74F5476ADF1B /* GlobalHotKeyController.swift in Sources */,
 				EA70C75EAE03957D64C8A89A /* IdentityAvatarImage.swift in Sources */,
 				65679A108BD941742103A172 /* MacLaunchAtLoginController.swift in Sources */,

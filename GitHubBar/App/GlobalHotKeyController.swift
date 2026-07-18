@@ -4,17 +4,17 @@ import OSLog
 
 struct GitHubBarShortcut {
     enum Key {
-        case b
+        case g
 
         var carbonKeyCode: UInt32 {
             switch self {
-            case .b: UInt32(kVK_ANSI_B)
+            case .g: UInt32(kVK_ANSI_G)
             }
         }
 
         var keyEquivalent: String {
             switch self {
-            case .b: "b"
+            case .g: "g"
             }
         }
     }
@@ -23,7 +23,7 @@ struct GitHubBarShortcut {
     let modifiers: NSEvent.ModifierFlags
 
     static let openMenu = GitHubBarShortcut(
-        key: .b,
+        key: .g,
         modifiers: [.command, .option]
     )
 

@@ -140,6 +140,7 @@ extension StatusItemController: NSMenuDelegate {
             pullRequest: pullRequest,
             highlightState: highlightState
         )
+        .environmentObject(avatarImageCache)
         .padding(.horizontal, 11)
         .frame(width: Self.menuWidth, height: Self.pullRequestRowHeight)
         let hosting = StatusMenuRowHostingView(
