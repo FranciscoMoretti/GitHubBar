@@ -1,6 +1,7 @@
 import AppKit
 import GitHubBarCore
 
+@MainActor
 enum StatusIconRenderer {
     private static let iconSize = NSSize(width: 18, height: 18)
     private static let githubMark: NSImage = {
