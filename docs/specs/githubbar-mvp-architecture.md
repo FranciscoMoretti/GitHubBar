@@ -127,7 +127,7 @@ Sparkle is not visible to `GitHubBarCore`.
 
 - Use an AppKit app delegate and `NSStatusItem.squareLength`; the app has no Dock icon or dashboard window.
 - `StatusItemController` owns the status button, an 18×18 point template-image renderer, `NSPopover` anchoring, open/close behavior, and accessibility title.
-- The icon shows no badge at zero, 1–9 directly, and `9+` above nine; the accessibility title contains the exact Review count.
+- The icon shows no count at zero, exact values from 1–99 in an open lower-right carve, and visually caps larger values at `99`; the accessibility title contains the exact Review count.
 - SwiftUI owns the accepted Variant D popover and the Settings scene.
 - Clicking a pull-request row opens GitHub through `NSWorkspace`. Copy link may be offered through a context menu. There is no row expansion, checkout, inline mutation, or GitHub write action.
 - Launch at login uses `SMAppService` and remains opt-in.

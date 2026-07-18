@@ -7,8 +7,8 @@ enum StatusIconRenderer {
     static func image(reviewCount: Int) -> NSImage {
         let image = NSImage(size: iconSize, flipped: false) { bounds in
             drawPullRequestMark(in: bounds)
-            if let badgeText = ReviewCountBadge.text(for: reviewCount) {
-                drawBadge(text: badgeText)
+            if let countText = ReviewCountDisplay.text(for: reviewCount) {
+                drawCarvedCount(text: countText, in: bounds)
             }
             return true
         }
@@ -25,32 +25,27 @@ enum StatusIconRenderer {
         path.lineCapStyle = .round
         path.lineJoinStyle = .round
 
-        path.move(to: NSPoint(x: 4.25, y: 5.5))
-        path.line(to: NSPoint(x: 4.25, y: 12.5))
+        path.move(to: NSPoint(x: 4.1, y: 4.65))
+        path.line(to: NSPoint(x: 4.1, y: 13.35))
 
-        path.move(to: NSPoint(x: 10.1, y: 13.1))
-        path.line(to: NSPoint(x: 12.2, y: 15.2))
-        path.line(to: NSPoint(x: 14.3, y: 13.1))
-        path.move(to: NSPoint(x: 12.2, y: 15.1))
-        path.line(to: NSPoint(x: 12.2, y: 11.8))
+        path.move(to: NSPoint(x: 8, y: 12.7))
+        path.line(to: NSPoint(x: 11, y: 12.7))
         path.curve(
-            to: NSPoint(x: 9.1, y: 8.7),
-            controlPoint1: NSPoint(x: 12.2, y: 10.1),
-            controlPoint2: NSPoint(x: 10.8, y: 8.7)
+            to: NSPoint(x: 13.95, y: 9.9),
+            controlPoint1: NSPoint(x: 12.65, y: 12.7),
+            controlPoint2: NSPoint(x: 13.95, y: 11.55)
         )
-        path.line(to: NSPoint(x: 8.2, y: 8.7))
+        path.line(to: NSPoint(x: 13.95, y: 4.65))
+
+        path.move(to: NSPoint(x: 8, y: 12.7))
+        path.line(to: NSPoint(x: 10.15, y: 14.8))
+        path.move(to: NSPoint(x: 8, y: 12.7))
+        path.line(to: NSPoint(x: 10.15, y: 10.6))
         path.stroke()
 
-        drawNode(center: NSPoint(x: 4.25, y: 4.1))
-        drawNode(center: NSPoint(x: 4.25, y: 13.9))
-        drawNode(center: NSPoint(x: 12.2, y: 4.1))
-
-        let rightStem = NSBezierPath()
-        rightStem.lineWidth = 1.5
-        rightStem.lineCapStyle = .round
-        rightStem.move(to: NSPoint(x: 12.2, y: 5.5))
-        rightStem.line(to: NSPoint(x: 12.2, y: 8.2))
-        rightStem.stroke()
+        drawNode(center: NSPoint(x: 4.1, y: 3.4))
+        drawNode(center: NSPoint(x: 4.1, y: 14.6))
+        drawNode(center: NSPoint(x: 13.95, y: 3.4))
     }
 
     private static func drawNode(center: NSPoint) {
@@ -59,22 +54,41 @@ enum StatusIconRenderer {
         node.stroke()
     }
 
-    private static func drawBadge(text: String) {
-        let badgeRect = NSRect(x: 7.6, y: 0, width: 10.4, height: 10.4)
-
-        NSColor.black.setFill()
-        NSBezierPath(ovalIn: badgeRect).fill()
-
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current?.compositingOperation = .clear
-        let fontSize: CGFloat = text == "9+" ? 5 : 7
+    private static func drawCarvedCount(text: String, in bounds: NSRect) {
+        let fontSize: CGFloat = text.count == 1 ? 8.9 : 8
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .bold),
-            .foregroundColor: NSColor.clear,
+            .font: NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .heavy),
+            .foregroundColor: NSColor.black,
         ]
         let string = NSAttributedString(string: text, attributes: attributes)
         let size = string.size()
-        string.draw(at: NSPoint(x: badgeRect.midX - size.width / 2, y: badgeRect.midY - size.height / 2 - 0.2))
+        let origin = NSPoint(
+            x: bounds.maxX - size.width - 0.15,
+            y: -0.15
+        )
+
+        let carveOrigin = NSPoint(
+            x: origin.x - 1.35,
+            y: bounds.minY - 3.5
+        )
+        let carveTop: CGFloat = 9.2
+        let carveRect = NSRect(
+            x: carveOrigin.x,
+            y: carveOrigin.y,
+            width: bounds.maxX + 3.5 - carveOrigin.x,
+            height: carveTop - carveOrigin.y
+        )
+
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current?.compositingOperation = .clear
+        NSColor.black.setFill()
+        NSBezierPath(
+            roundedRect: carveRect,
+            xRadius: 2.6,
+            yRadius: 2.6
+        ).fill()
         NSGraphicsContext.restoreGraphicsState()
+
+        string.draw(at: origin)
     }
 }

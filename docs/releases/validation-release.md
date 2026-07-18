@@ -33,7 +33,7 @@ Expected architecture output is `arm64 x86_64`. The packaging script also valida
 Before publishing, manually verify on a supported macOS account:
 
 - instant Snapshot startup and live reconciliation;
-- zero, single-digit, and `9+` status badges with the exact VoiceOver count;
+- zero, single-digit, and two-digit carved status counts with the exact VoiceOver count;
 - both PR sections, drafts, reviewer avatars/fallbacks, and row keyboard activation;
 - repository search and persisted selection;
 - account recovery/selection, cadence changes, and launch-at-login reporting;

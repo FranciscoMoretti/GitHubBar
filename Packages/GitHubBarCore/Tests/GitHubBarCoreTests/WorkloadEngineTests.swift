@@ -2,10 +2,12 @@ import XCTest
 @testable import GitHubBarCore
 
 final class WorkloadEngineTests: XCTestCase {
-    func testReviewCountBadgeCapsVisualTextWithoutCappingAccessibilityCount() {
-        XCTAssertNil(ReviewCountBadge.text(for: 0))
-        XCTAssertEqual(ReviewCountBadge.text(for: 4), "4")
-        XCTAssertEqual(ReviewCountBadge.text(for: 57), "9+")
+    func testReviewCountDisplayShowsTwoDigitsAndCapsThreeDigitVisualText() {
+        XCTAssertNil(ReviewCountDisplay.text(for: 0))
+        XCTAssertEqual(ReviewCountDisplay.text(for: 4), "4")
+        XCTAssertEqual(ReviewCountDisplay.text(for: 20), "20")
+        XCTAssertEqual(ReviewCountDisplay.text(for: 99), "99")
+        XCTAssertEqual(ReviewCountDisplay.text(for: 100), "99")
     }
 
     func testSubscriberImmediatelyReceivesTruthfulEmptyPresentation() async throws {

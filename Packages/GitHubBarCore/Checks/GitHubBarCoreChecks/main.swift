@@ -15,9 +15,10 @@ enum GitHubBarCoreChecks {
 
         check(initialState == .empty, "Initial state is empty", failures: &failures)
         check(initialState.reviewCount == 0, "Initial Review count is zero", failures: &failures)
-        check(ReviewCountBadge.text(for: 0) == nil, "Zero Review count hides its badge", failures: &failures)
-        check(ReviewCountBadge.text(for: 4) == "4", "Single-digit Review count is shown", failures: &failures)
-        check(ReviewCountBadge.text(for: 10) == "9+", "Double-digit Review count is capped visually", failures: &failures)
+        check(ReviewCountDisplay.text(for: 0) == nil, "Zero Review count hides its indicator", failures: &failures)
+        check(ReviewCountDisplay.text(for: 4) == "4", "Single-digit Review count is shown", failures: &failures)
+        check(ReviewCountDisplay.text(for: 20) == "20", "Double-digit Review count is shown", failures: &failures)
+        check(ReviewCountDisplay.text(for: 100) == "99", "Three-digit Review count is capped visually", failures: &failures)
         check(
             initialState.reviewCountAccessibilityLabel == "No pull requests waiting for your review",
             "Zero Review count has an exact accessibility label",
