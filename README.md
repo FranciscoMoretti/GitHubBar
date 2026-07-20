@@ -41,6 +41,15 @@
 
 3. Unzip GitHubBar, move it to **Applications**, then Control-click the app and choose **Open** the first time.
 
+If macOS still blocks the app, remove quarantine from GitHubBar only:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/GitHubBar.app
+open /Applications/GitHubBar.app
+```
+
+This does not disable Gatekeeper or other security protections system-wide.
+
 GitHubBar requires macOS 14 or newer. Validation builds are universal, ad-hoc signed, and not yet notarized.
 
 ## Privacy
