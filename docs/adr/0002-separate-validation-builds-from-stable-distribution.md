@@ -1,5 +1,6 @@
 ---
-status: accepted
+status: superseded
+superseded-by: 0006-publish-1.0.0-without-apple-credentials.md
 ---
 
 # Separate validation builds from stable distribution

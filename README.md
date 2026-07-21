@@ -41,9 +41,9 @@
 
 3. Unzip GitHubBar and move it to **Applications**.
 
-Stable releases are Developer ID signed and notarized for Gatekeeper. GitHubBar requires macOS 14 or newer and runs on both Apple silicon and Intel Macs.
+GitHubBar 1.0.0 is ad-hoc signed and not Apple-notarized. On first launch, macOS may block it: try opening GitHubBar once, then choose **Open Anyway** under **System Settings → Privacy & Security** after verifying the downloaded checksum.
 
-Pre-release validation builds remain ad-hoc signed and may require **Open Anyway** under **System Settings → Privacy & Security**.
+GitHubBar requires macOS 14 or newer and runs on both Apple silicon and Intel Macs. Developer ID signing, notarization, and automatic updates remain planned for a future release.
 
 ## Privacy
 
