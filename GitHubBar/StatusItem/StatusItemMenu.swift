@@ -24,12 +24,14 @@ extension StatusItemController: NSMenuDelegate {
     public func menuWillOpen(_ menu: NSMenu) {
         guard menu === statusMenu else { return }
         isStatusMenuOpen = true
+        installStatusMenuKeyMonitor()
         appModel.send(.setWorkloadSurfaceOpen(true))
     }
 
     public func menuDidClose(_ menu: NSMenu) {
         guard menu === statusMenu else { return }
         isStatusMenuOpen = false
+        removeStatusMenuKeyMonitor()
         highlightedStatusMenuItem = nil
         appModel.send(.setWorkloadSurfaceOpen(false))
         rebuildStatusMenu()
@@ -311,27 +313,123 @@ extension StatusItemController: NSMenuDelegate {
 
     private func addActions() {
         statusMenu.addItem(.separator())
-        statusMenu.addItem(actionItem("Refresh", selector: #selector(refresh), key: "r"))
-        statusMenu.addItem(actionItem("Settings…", selector: #selector(openSettings), key: ","))
-        statusMenu.addItem(actionItem("About GitHubBar", selector: #selector(openAbout)))
-        statusMenu.addItem(actionItem("Quit", selector: #selector(quit), key: "q"))
+        statusMenuActions.forEach { statusMenu.addItem(actionItem($0)) }
         guard let registeredShortcut else { return }
         statusMenu.addItem(.separator())
-
-        let shortcut = NSMenuItem(
-            title: "Shortcut to open GitHubBar",
-            action: nil,
-            keyEquivalent: registeredShortcut.key.keyEquivalent
-        )
-        shortcut.keyEquivalentModifierMask = registeredShortcut.modifiers
-        shortcut.isEnabled = false
-        statusMenu.addItem(shortcut)
+        statusMenu.addItem(shortcutHintItem(for: registeredShortcut))
     }
 
-    private func actionItem(_ title: String, selector: Selector, key: String = "") -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: selector, keyEquivalent: key)
+    private var statusMenuActions: [StatusMenuActionDescriptor] {
+        [
+            StatusMenuActionDescriptor(
+                title: "Refresh",
+                systemImage: "arrow.clockwise",
+                shortcut: StatusMenuKeyboardShortcut(keyEquivalent: "r"),
+                selector: #selector(refresh)
+            ),
+            StatusMenuActionDescriptor(
+                title: "Settings…",
+                systemImage: "gearshape",
+                shortcut: StatusMenuKeyboardShortcut(keyEquivalent: ","),
+                selector: #selector(openSettings)
+            ),
+            StatusMenuActionDescriptor(
+                title: "About GitHubBar",
+                systemImage: "info.circle",
+                shortcut: nil,
+                selector: #selector(openAbout)
+            ),
+            StatusMenuActionDescriptor(
+                title: "Quit",
+                systemImage: "rectangle.portrait.and.arrow.right",
+                shortcut: StatusMenuKeyboardShortcut(keyEquivalent: "q"),
+                selector: #selector(quit)
+            ),
+        ]
+    }
+
+    private func actionItem(_ action: StatusMenuActionDescriptor) -> NSMenuItem {
+        let highlightState = StatusMenuHighlightState()
+        let row = StatusMenuActionRow(
+            title: action.title,
+            systemImage: action.systemImage,
+            shortcut: action.shortcut?.displayString,
+            highlightState: highlightState
+        )
+        .padding(.horizontal, 11)
+        .frame(width: Self.menuWidth, height: Self.pullRequestRowHeight)
+        let hosting = StatusMenuRowHostingView(
+            rootView: row,
+            highlightState: highlightState,
+            accessibilityLabel: action.shortcut.map {
+                "\(action.title), \($0.displayString)"
+            } ?? action.title
+        ) { [weak self] in
+            guard let self else { return }
+            self.statusMenu.cancelTracking()
+            NSApp.sendAction(action.selector, to: self, from: nil)
+        }
+        hosting.frame = NSRect(
+            x: 0,
+            y: 0,
+            width: Self.menuWidth,
+            height: Self.pullRequestRowHeight
+        )
+
+        let item = NSMenuItem(
+            title: action.title,
+            action: action.selector,
+            keyEquivalent: ""
+        )
         item.target = self
+        item.view = hosting
         return item
+    }
+
+    private func shortcutHintItem(for shortcut: GitHubBarShortcut) -> NSMenuItem {
+        let item = NSMenuItem()
+        let view = StatusMenuShortcutHintRow(
+            title: "Shortcut to open GitHubBar",
+            shortcut: shortcut.displayString
+        )
+        .frame(width: Self.menuWidth, height: Self.pullRequestRowHeight)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = NSRect(
+            x: 0,
+            y: 0,
+            width: Self.menuWidth,
+            height: Self.pullRequestRowHeight
+        )
+        item.view = hosting
+        item.isEnabled = false
+        item.setAccessibilityLabel("Shortcut to open GitHubBar, \(shortcut.displayString)")
+        return item
+    }
+
+    private func installStatusMenuKeyMonitor() {
+        guard statusMenuKeyMonitor == nil else { return }
+        statusMenuKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) {
+            [weak self] event in
+            guard let self, self.isStatusMenuOpen else { return event }
+            let modifiers = event.modifierFlags.intersection([
+                .command,
+                .option,
+                .control,
+                .shift,
+            ])
+            guard let action = self.statusMenuActions.first(where: {
+                $0.shortcut?.matches(event, modifiers: modifiers) == true
+            }) else { return event }
+            self.statusMenu.cancelTracking()
+            NSApp.sendAction(action.selector, to: self, from: nil)
+            return nil
+        }
+    }
+
+    private func removeStatusMenuKeyMonitor() {
+        guard let statusMenuKeyMonitor else { return }
+        NSEvent.removeMonitor(statusMenuKeyMonitor)
+        self.statusMenuKeyMonitor = nil
     }
 
     private func setSubtitle(_ subtitle: String, on item: NSMenuItem) {
@@ -483,6 +581,35 @@ private struct StatusMenuPullRequestEntry {
     let stack: PullRequestStack?
 }
 
+private struct StatusMenuActionDescriptor {
+    let title: String
+    let systemImage: String
+    let shortcut: StatusMenuKeyboardShortcut?
+    let selector: Selector
+}
+
+private struct StatusMenuKeyboardShortcut {
+    let keyEquivalent: String
+    let modifiers: NSEvent.ModifierFlags
+
+    init(
+        keyEquivalent: String,
+        modifiers: NSEvent.ModifierFlags = .command
+    ) {
+        self.keyEquivalent = keyEquivalent
+        self.modifiers = modifiers
+    }
+
+    var displayString: String {
+        modifiers.shortcutDisplayString(for: keyEquivalent)
+    }
+
+    func matches(_ event: NSEvent, modifiers eventModifiers: NSEvent.ModifierFlags) -> Bool {
+        eventModifiers == modifiers &&
+            event.charactersIgnoringModifiers?.lowercased() == keyEquivalent.lowercased()
+    }
+}
+
 private final class StatusMenuURLTarget: NSObject {
     let url: URL
     let keepsMenuOpen: Bool
@@ -623,6 +750,57 @@ private struct StatusMenuPullRequestRow: View {
             }
         }
         .contentShape(Rectangle())
+        .environment(\.colorScheme, .dark)
+    }
+}
+
+private struct StatusMenuActionRow: View {
+    let title: String
+    let systemImage: String
+    let shortcut: String?
+    @ObservedObject var highlightState: StatusMenuHighlightState
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11))
+                .frame(width: 14)
+                .foregroundStyle(highlightState.isHighlighted ? Color.white : Color.secondary)
+            Text(title)
+                .font(.system(size: 12))
+            Spacer(minLength: 8)
+            if let shortcut {
+                Text(shortcut)
+                    .font(.system(size: 11))
+                    .foregroundStyle(highlightState.isHighlighted ? Color.white.opacity(0.8) : Color.secondary)
+            }
+        }
+        .padding(.horizontal, 7)
+        .foregroundStyle(highlightState.isHighlighted ? Color.white : Color.primary)
+        .background {
+            if highlightState.isHighlighted {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color.accentColor)
+            }
+        }
+        .contentShape(Rectangle())
+        .environment(\.colorScheme, .dark)
+    }
+}
+
+private struct StatusMenuShortcutHintRow: View {
+    let title: String
+    let shortcut: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(shortcut)
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(.tertiary)
+        .padding(.horizontal, 18)
         .environment(\.colorScheme, .dark)
     }
 }

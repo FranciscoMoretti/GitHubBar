@@ -35,6 +35,21 @@ struct GitHubBarShortcut {
         if modifiers.contains(.shift) { value |= UInt32(shiftKey) }
         return value
     }
+
+    var displayString: String {
+        modifiers.shortcutDisplayString(for: key.keyEquivalent)
+    }
+}
+
+extension NSEvent.ModifierFlags {
+    func shortcutDisplayString(for keyEquivalent: String) -> String {
+        var value = ""
+        if contains(.control) { value += "⌃" }
+        if contains(.option) { value += "⌥" }
+        if contains(.shift) { value += "⇧" }
+        if contains(.command) { value += "⌘" }
+        return value + keyEquivalent.uppercased()
+    }
 }
 
 @MainActor

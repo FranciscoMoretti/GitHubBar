@@ -10,6 +10,7 @@ final class StatusItemController: NSObject {
     let statusMenu = NSMenu()
     var isStatusMenuOpen = false
     var highlightedStatusMenuItem: NSMenuItem?
+    var statusMenuKeyMonitor: Any?
     var registeredShortcut: GitHubBarShortcut?
     var pendingRepositoryScope: RepositoryScope?
     private var avatarCacheAccountLogin: String?
