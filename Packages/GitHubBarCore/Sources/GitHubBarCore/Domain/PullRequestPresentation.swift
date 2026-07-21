@@ -4,6 +4,9 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
     public let id: String
     public let repositoryID: String
     public let repositoryNameWithOwner: String
+    public let baseRefName: String?
+    public let headRefName: String?
+    public let headRepositoryID: String?
     public let number: Int
     public let title: String
     public let url: URL
@@ -18,6 +21,9 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
         id: String,
         repositoryID: String,
         repositoryNameWithOwner: String,
+        baseRefName: String? = nil,
+        headRefName: String? = nil,
+        headRepositoryID: String? = nil,
         number: Int,
         title: String,
         url: URL,
@@ -31,6 +37,9 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
         self.id = id
         self.repositoryID = repositoryID
         self.repositoryNameWithOwner = repositoryNameWithOwner
+        self.baseRefName = baseRefName
+        self.headRefName = headRefName
+        self.headRepositoryID = headRepositoryID
         self.number = number
         self.title = title
         self.url = url
@@ -58,7 +67,8 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, repositoryID, repositoryNameWithOwner, number, title, url, isDraft, author
+        case id, repositoryID, repositoryNameWithOwner, baseRefName, headRefName, headRepositoryID
+        case number, title, url, isDraft, author
         case reviewDecision, updatedAt, requestedReviewers, reviewers
     }
 
@@ -67,6 +77,9 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
         id = try container.decode(String.self, forKey: .id)
         repositoryID = try container.decode(String.self, forKey: .repositoryID)
         repositoryNameWithOwner = try container.decode(String.self, forKey: .repositoryNameWithOwner)
+        baseRefName = try container.decodeIfPresent(String.self, forKey: .baseRefName)
+        headRefName = try container.decodeIfPresent(String.self, forKey: .headRefName)
+        headRepositoryID = try container.decodeIfPresent(String.self, forKey: .headRepositoryID)
         number = try container.decode(Int.self, forKey: .number)
         title = try container.decode(String.self, forKey: .title)
         url = try container.decode(URL.self, forKey: .url)

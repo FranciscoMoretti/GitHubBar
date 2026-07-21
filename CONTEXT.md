@@ -44,6 +44,14 @@ _Avoid_: Ready PRs, submitted PRs
 An Authored pull request whose current GitHub state is draft. Drafts take precedence over Review decision when assigning the Authored workflow section.
 _Avoid_: Work in progress
 
+**Pull request stack**:
+An ordered group of open pull requests in one repository where each member after the first targets the preceding member's head branch. A Pull request stack provides navigation context but does not change any member's Authored workflow section or Review-request status.
+_Avoid_: Batch, series, chain
+
+**Stack root**:
+The first pull request in a Pull request stack. Its base branch is not the head branch of another open member in that stack.
+_Avoid_: Parent PR, first change
+
 **Review decision**:
 GitHub's aggregate review status for an Authored pull request: approved, changes requested, review required, or absent.
 _Avoid_: Review status, reviewer state

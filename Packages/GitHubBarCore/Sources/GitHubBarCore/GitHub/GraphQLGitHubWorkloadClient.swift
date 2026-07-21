@@ -509,6 +509,9 @@ private extension GraphQLGitHubWorkloadClient {
           reviewDecision
           state
           updatedAt
+          baseRefName
+          headRefName
+          headRepository { id }
           author { login avatarUrl }
           repository { id nameWithOwner }
           reviewRequests(first: 100) {
@@ -800,10 +803,17 @@ private struct PullRequestDTO: Decodable, Sendable {
     let reviewDecision: String?
     let state: String
     let updatedAt: String
+    let baseRefName: String?
+    let headRefName: String?
+    let headRepository: RepositoryIdentityDTO?
     let author: ActorDTO?
     let repository: RepositoryDTO
     let reviewRequests: ReviewRequestConnectionDTO
     let reviews: ReviewConnectionDTO
+}
+
+private struct RepositoryIdentityDTO: Decodable, Sendable {
+    let id: String
 }
 
 private struct RepositoryDTO: Decodable, Sendable {
@@ -880,6 +890,9 @@ private struct HydratedRecord: Sendable {
     let id: String
     let repositoryID: String
     let repositoryNameWithOwner: String
+    let baseRefName: String?
+    let headRefName: String?
+    let headRepositoryID: String?
     let author: PullRequestAuthorPresentation
     let isDraft: Bool
     let reviewDecision: PullRequestReviewDecision?
@@ -903,6 +916,9 @@ private struct HydratedRecord: Sendable {
         id = dto.id
         repositoryID = dto.repository.id
         repositoryNameWithOwner = dto.repository.nameWithOwner
+        baseRefName = dto.baseRefName
+        headRefName = dto.headRefName
+        headRepositoryID = dto.headRepository?.id
         self.author = author.pullRequestAuthorPresentation
         isDraft = dto.isDraft
         reviewDecision = dto.reviewDecision.flatMap(PullRequestReviewDecision.init(rawValue:))
@@ -937,6 +953,9 @@ private struct HydratedRecord: Sendable {
             id: id,
             repositoryID: repositoryID,
             repositoryNameWithOwner: repositoryNameWithOwner,
+            baseRefName: baseRefName,
+            headRefName: headRefName,
+            headRepositoryID: headRepositoryID,
             number: number,
             title: title,
             url: url,
