@@ -12,28 +12,6 @@ public struct PullRequestStack: Equatable, Identifiable, Sendable {
     public var root: PullRequestPresentation? {
         pullRequests.first
     }
-
-    public var githubCompareURL: URL? {
-        guard let root = pullRequests.first,
-              let top = pullRequests.last,
-              let baseRefName = root.baseRefName,
-              let headRefName = top.headRefName,
-              let encodedBaseRefName = percentEncodedRefName(baseRefName),
-              let encodedHeadRefName = percentEncodedRefName(headRefName),
-              let repositoryNameWithOwner = pullRequests.first?.repositoryNameWithOwner,
-              pullRequests.allSatisfy({ $0.repositoryNameWithOwner == repositoryNameWithOwner }) else {
-            return nil
-        }
-        return URL(
-            string: "https://github.com/\(repositoryNameWithOwner)/compare/" +
-                "\(encodedBaseRefName)...\(encodedHeadRefName)"
-        )
-    }
-
-    private func percentEncodedRefName(_ refName: String) -> String? {
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
-        return refName.addingPercentEncoding(withAllowedCharacters: allowed)
-    }
 }
 
 public enum PullRequestStackResolver {

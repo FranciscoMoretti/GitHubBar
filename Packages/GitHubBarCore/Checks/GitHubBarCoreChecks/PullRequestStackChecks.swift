@@ -40,35 +40,6 @@ enum PullRequestStackChecks {
             "Pull request stack members are ordered from Stack root to top",
             failures: &failures
         )
-        check(
-            stacks.first?.githubCompareURL?.absoluteString ==
-                "https://github.com/alaro-ai/alaro/compare/main...skills-3",
-            "A Pull request stack exposes its full GitHub comparison URL",
-            failures: &failures
-        )
-
-        let slashBranchRoot = pullRequest(
-            id: "PR-46",
-            number: 46,
-            base: "main",
-            head: "codex/portless-4-lifecycle-engine",
-            updatedAt: 1
-        )
-        let slashBranchTop = pullRequest(
-            id: "PR-47",
-            number: 47,
-            base: "codex/portless-4-lifecycle-engine",
-            head: "codex/portless-5-instance-dashboard",
-            updatedAt: 2
-        )
-        check(
-            PullRequestStackResolver.stacks(in: [slashBranchRoot, slashBranchTop])
-                .first?.githubCompareURL?.absoluteString ==
-                "https://github.com/alaro-ai/alaro/compare/main...codex%2Fportless-5-instance-dashboard",
-            "GitHub comparison URLs preserve branch names containing slashes",
-            failures: &failures
-        )
-
         let otherRepositoryChild = pullRequest(
             id: "OTHER-1",
             repositoryID: "REPO-2",

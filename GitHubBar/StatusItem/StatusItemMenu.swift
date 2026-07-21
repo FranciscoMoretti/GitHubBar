@@ -36,7 +36,6 @@ extension StatusItemController: NSMenuDelegate {
     }
 
     public func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?) {
-        guard menu === statusMenu else { return }
         (highlightedStatusMenuItem?.view as? StatusMenuHighlighting)?.setHighlighted(false)
         highlightedStatusMenuItem = nil
         guard let item, item.isEnabled, let view = item.view as? StatusMenuHighlighting else { return }
@@ -203,7 +202,8 @@ extension StatusItemController: NSMenuDelegate {
     private func pullRequestItem(
         _ pullRequest: PullRequestPresentation,
         stack: PullRequestStack? = nil,
-        width: CGFloat = StatusItemController.menuWidth
+        width: CGFloat = StatusItemController.menuWidth,
+        keepsMenuOpenAfterOpening: Bool = false
     ) -> NSMenuItem {
         let highlightState = StatusMenuHighlightState()
         let row = StatusMenuPullRequestRow(
@@ -216,7 +216,10 @@ extension StatusItemController: NSMenuDelegate {
         .padding(.horizontal, 11)
         .frame(width: width, height: Self.pullRequestRowHeight)
         let onClick: (() -> Void)? = stack == nil ? { [weak self] in
-            self?.open(pullRequest.url)
+            self?.open(
+                pullRequest.url,
+                keepsMenuOpen: keepsMenuOpenAfterOpening
+            )
         } : nil
         let hosting = StatusMenuRowHostingView(
             rootView: row,
@@ -245,7 +248,10 @@ extension StatusItemController: NSMenuDelegate {
         } else {
             item.target = self
             item.action = #selector(openURL(_:))
-            item.representedObject = pullRequest.url as NSURL
+            item.representedObject = StatusMenuURLTarget(
+                url: pullRequest.url,
+                keepsMenuOpen: keepsMenuOpenAfterOpening
+            )
         }
         return item
     }
@@ -253,6 +259,7 @@ extension StatusItemController: NSMenuDelegate {
     private func stackSubmenu(for stack: PullRequestStack) -> NSMenu {
         let submenu = NSMenu()
         submenu.autoenablesItems = false
+        submenu.delegate = self
 
         let header = NSMenuItem(
             title: "Stack · \(stack.pullRequests.count) pull requests",
@@ -263,20 +270,12 @@ extension StatusItemController: NSMenuDelegate {
         submenu.addItem(header)
         for pullRequest in stack.pullRequests {
             submenu.addItem(
-                pullRequestItem(pullRequest, width: Self.stackSubmenuWidth)
+                pullRequestItem(
+                    pullRequest,
+                    width: Self.stackSubmenuWidth,
+                    keepsMenuOpenAfterOpening: true
+                )
             )
-        }
-        if let githubURL = stack.githubCompareURL {
-            submenu.addItem(.separator())
-            let compareStack = NSMenuItem(
-                title: "Compare stack on GitHub ↗",
-                action: #selector(openURL(_:)),
-                keyEquivalent: ""
-            )
-            compareStack.target = self
-            compareStack.representedObject = githubURL as NSURL
-            compareStack.toolTip = "View the combined changes from the Stack root base to the top branch."
-            submenu.addItem(compareStack)
         }
         return submenu
     }
@@ -365,9 +364,16 @@ extension StatusItemController: NSMenuDelegate {
         return "\(pullRequestLabel) · \(stack.pullRequests.count) PR stack"
     }
 
-    private func open(_ url: URL) {
-        statusMenu.cancelTracking()
-        NSWorkspace.shared.open(url)
+    private func open(_ url: URL, keepsMenuOpen: Bool = false) {
+        guard keepsMenuOpen else {
+            statusMenu.cancelTracking()
+            NSWorkspace.shared.open(url)
+            return
+        }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+        NSWorkspace.shared.open(url, configuration: configuration) { _, _ in }
     }
 
     private var accountLabel: String {
@@ -397,8 +403,11 @@ extension StatusItemController: NSMenuDelegate {
     }
 
     @objc private func openURL(_ sender: NSMenuItem) {
-        guard let url = sender.representedObject as? URL else { return }
-        open(url)
+        if let target = sender.representedObject as? StatusMenuURLTarget {
+            open(target.url, keepsMenuOpen: target.keepsMenuOpen)
+        } else if let url = sender.representedObject as? URL {
+            open(url)
+        }
     }
 
     @objc private func refresh() {
@@ -472,6 +481,16 @@ private enum StatusMenuSection {
 private struct StatusMenuPullRequestEntry {
     let pullRequest: PullRequestPresentation
     let stack: PullRequestStack?
+}
+
+private final class StatusMenuURLTarget: NSObject {
+    let url: URL
+    let keepsMenuOpen: Bool
+
+    init(url: URL, keepsMenuOpen: Bool) {
+        self.url = url
+        self.keepsMenuOpen = keepsMenuOpen
+    }
 }
 
 @MainActor
