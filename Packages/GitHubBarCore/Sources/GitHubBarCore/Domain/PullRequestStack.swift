@@ -12,6 +12,10 @@ public struct PullRequestStack: Equatable, Identifiable, Sendable {
     public var root: PullRequestPresentation? {
         pullRequests.first
     }
+
+    public func members(withIDs pullRequestIDs: Set<String>) -> [PullRequestPresentation] {
+        pullRequests.filter { pullRequestIDs.contains($0.id) }
+    }
 }
 
 public enum PullRequestStackResolver {

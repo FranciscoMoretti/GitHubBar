@@ -40,6 +40,11 @@ enum PullRequestStackChecks {
             "Pull request stack members are ordered from Stack root to top",
             failures: &failures
         )
+        check(
+            stacks.first?.members(withIDs: [top.id, root.id]).map(\.number) == [2872, 2874],
+            "Section members retain Stack root-to-top order",
+            failures: &failures
+        )
         let otherRepositoryChild = pullRequest(
             id: "OTHER-1",
             repositoryID: "REPO-2",

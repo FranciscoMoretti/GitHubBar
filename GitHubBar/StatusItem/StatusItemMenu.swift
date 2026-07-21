@@ -129,7 +129,10 @@ extension StatusItemController: NSMenuDelegate {
         )
         entries.prefix(Self.pullRequestLimit).forEach { entry in
             statusMenu.addItem(
-                pullRequestItem(entry.pullRequest, stack: entry.stack)
+                pullRequestItem(
+                    entry.pullRequest,
+                    stackRowContext: entry.stackRowContext
+                )
             )
         }
         if entries.count > Self.pullRequestLimit {
@@ -161,14 +164,26 @@ extension StatusItemController: NSMenuDelegate {
 
         for pullRequest in pullRequests {
             guard let stack = stacksByPullRequestID[pullRequest.id] else {
-                entries.append(StatusMenuPullRequestEntry(pullRequest: pullRequest, stack: nil))
+                entries.append(
+                    StatusMenuPullRequestEntry(
+                        pullRequest: pullRequest,
+                        stackRowContext: nil
+                    )
+                )
                 continue
             }
             guard representedStackIDs.insert(stack.id).inserted else { continue }
-            let representative = stack.pullRequests.first {
-                sectionPullRequestIDs.contains($0.id)
-            } ?? pullRequest
-            entries.append(StatusMenuPullRequestEntry(pullRequest: representative, stack: stack))
+            let sectionMembers = stack.members(withIDs: sectionPullRequestIDs)
+            let representative = sectionMembers.first ?? pullRequest
+            entries.append(
+                StatusMenuPullRequestEntry(
+                    pullRequest: representative,
+                    stackRowContext: StatusMenuStackRowContext(
+                        stack: stack,
+                        sectionMemberCount: sectionMembers.count
+                    )
+                )
+            )
         }
         return entries
     }
@@ -203,7 +218,8 @@ extension StatusItemController: NSMenuDelegate {
 
     private func pullRequestItem(
         _ pullRequest: PullRequestPresentation,
-        stack: PullRequestStack? = nil,
+        stackRowContext: StatusMenuStackRowContext? = nil,
+        stackMemberSection: StatusMenuSection? = nil,
         width: CGFloat = StatusItemController.menuWidth,
         keepsMenuOpenAfterOpening: Bool = false
     ) -> NSMenuItem {
@@ -211,13 +227,19 @@ extension StatusItemController: NSMenuDelegate {
         let row = StatusMenuPullRequestRow(
             pullRequest: pullRequest,
             highlightState: highlightState,
-            additionalStackCount: stack.map { $0.pullRequests.count - 1 } ?? 0,
-            showsDisclosure: stack != nil
+            stackMembershipCount: stackRowContext.map { context in
+                StatusMenuStackMembershipCount(
+                    sectionCount: context.sectionMemberCount,
+                    totalCount: context.stack.pullRequests.count
+                )
+            },
+            stackMemberSection: stackMemberSection,
+            showsDisclosure: stackRowContext != nil
         )
         .environmentObject(avatarImageCache)
         .padding(.horizontal, 11)
         .frame(width: width, height: Self.pullRequestRowHeight)
-        let onClick: (() -> Void)? = stack == nil ? { [weak self] in
+        let onClick: (() -> Void)? = stackRowContext == nil ? { [weak self] in
             self?.open(
                 pullRequest.url,
                 keepsMenuOpen: keepsMenuOpenAfterOpening
@@ -226,7 +248,11 @@ extension StatusItemController: NSMenuDelegate {
         let hosting = StatusMenuRowHostingView(
             rootView: row,
             highlightState: highlightState,
-            accessibilityLabel: accessibilityLabel(for: pullRequest, stack: stack),
+            accessibilityLabel: accessibilityLabel(
+                for: pullRequest,
+                stackRowContext: stackRowContext,
+                stackMemberSection: stackMemberSection
+            ),
             onClick: onClick
         )
         hosting.frame = NSRect(
@@ -241,12 +267,18 @@ extension StatusItemController: NSMenuDelegate {
             action: nil,
             keyEquivalent: ""
         )
-        item.setAccessibilityLabel(accessibilityLabel(for: pullRequest, stack: stack))
+        item.setAccessibilityLabel(
+            accessibilityLabel(
+                for: pullRequest,
+                stackRowContext: stackRowContext,
+                stackMemberSection: stackMemberSection
+            )
+        )
         item.view = hosting
         item.isEnabled = true
-        item.toolTip = pullRequestTooltip(for: pullRequest, stack: stack)
-        if let stack {
-            item.submenu = stackSubmenu(for: stack)
+        item.toolTip = pullRequestTooltip(for: pullRequest, stack: stackRowContext?.stack)
+        if let stackRowContext {
+            item.submenu = stackSubmenu(for: stackRowContext.stack)
         } else {
             item.target = self
             item.action = #selector(openURL(_:))
@@ -274,6 +306,7 @@ extension StatusItemController: NSMenuDelegate {
             submenu.addItem(
                 pullRequestItem(
                     pullRequest,
+                    stackMemberSection: stackMemberSection(for: pullRequest),
                     width: Self.stackSubmenuWidth,
                     keepsMenuOpenAfterOpening: true
                 )
@@ -442,15 +475,34 @@ extension StatusItemController: NSMenuDelegate {
 
     private func accessibilityLabel(
         for pullRequest: PullRequestPresentation,
-        stack: PullRequestStack?
+        stackRowContext: StatusMenuStackRowContext?,
+        stackMemberSection: StatusMenuSection? = nil
     ) -> String {
         let author = pullRequest.author.map { "Author: \($0.displayName). " } ?? ""
         let reviewerNames = pullRequest.reviewers.map(\.displayName).joined(separator: ", ")
         let reviewers = reviewerNames.isEmpty ? "No reviewers" : "Reviewers: \(reviewerNames)"
         let state = pullRequest.isDraft ? "Draft pull request. " : "Open pull request. "
-        let stackLabel = stack.map { "Stack of \($0.pullRequests.count) pull requests. " } ?? ""
+        let stackLabel = stackRowContext.map { context in
+            "Stack with \(context.sectionMemberCount) in this section and " +
+                "\(context.stack.pullRequests.count) total. "
+        } ?? ""
+        let section = stackMemberSection.map {
+            "\($0.stackMemberDisplay.accessibilityLabel). "
+        } ?? ""
         return "\(pullRequest.repositoryNameWithOwner) number \(pullRequest.number), " +
-            "\(pullRequest.title). \(state)\(stackLabel)\(author)\(reviewers)."
+            "\(pullRequest.title). \(state)\(stackLabel)\(section)\(author)\(reviewers)."
+    }
+
+    private func stackMemberSection(
+        for pullRequest: PullRequestPresentation
+    ) -> StatusMenuSection {
+        if appModel.state.needsYourReview.contains(where: { $0.id == pullRequest.id }) {
+            return .needsYourReview
+        }
+        if let authoredSection = pullRequest.authoredSection {
+            return .authored(authoredSection)
+        }
+        return .legacyMyPRs
     }
 
     private func pullRequestTooltip(
@@ -552,33 +604,118 @@ private enum StatusMenuSection {
     case legacyMyPRs
 
     var title: String {
-        switch self {
-        case .needsYourReview: "Needs your review"
-        case .authored(.returnedToYou): "Returned to you"
-        case .authored(.needsReviewers): "Needs reviewers"
-        case .authored(.waitingForReviewers): "Waiting for reviewers"
-        case .authored(.approved): "Approved"
-        case .authored(.drafts): "Drafts"
-        case .legacyMyPRs: "My PRs"
-        }
+        metadata.title
     }
 
     var searchQualifiers: [String] {
+        metadata.searchQualifiers
+    }
+
+    var stackMemberDisplay: StatusMenuStackMemberSectionDisplay {
+        metadata.stackMemberDisplay
+    }
+
+    private var metadata: StatusMenuSectionMetadata {
         switch self {
-        case .needsYourReview: ["review-requested:@me", "-is:draft"]
-        case .authored(.returnedToYou): ["author:@me", "review:changes_requested", "-is:draft"]
-        case .authored(.needsReviewers): ["author:@me", "review:none", "-is:draft"]
-        case .authored(.waitingForReviewers): ["author:@me", "review:required", "-is:draft"]
-        case .authored(.approved): ["author:@me", "review:approved", "-is:draft"]
-        case .authored(.drafts): ["author:@me", "is:draft"]
-        case .legacyMyPRs: ["author:@me"]
+        case .needsYourReview:
+            StatusMenuSectionMetadata(
+                title: "Needs your review",
+                searchQualifiers: ["review-requested:@me", "-is:draft"],
+                stackMemberDisplay: StatusMenuStackMemberSectionDisplay(
+                    title: "Review",
+                    accessibilityLabel: "Review-request status: Needs your review",
+                    color: .accentColor
+                )
+            )
+        case .authored(.returnedToYou):
+            StatusMenuSectionMetadata(
+                title: "Returned to you",
+                searchQualifiers: ["author:@me", "review:changes_requested", "-is:draft"],
+                stackMemberDisplay: StatusMenuStackMemberSectionDisplay(
+                    title: "Returned",
+                    accessibilityLabel: "Authored workflow section: Returned to you",
+                    color: .orange
+                )
+            )
+        case .authored(.needsReviewers):
+            StatusMenuSectionMetadata(
+                title: "Needs reviewers",
+                searchQualifiers: ["author:@me", "review:none", "-is:draft"],
+                stackMemberDisplay: StatusMenuStackMemberSectionDisplay(
+                    title: "Needs reviewers",
+                    accessibilityLabel: "Authored workflow section: Needs reviewers",
+                    color: .secondary
+                )
+            )
+        case .authored(.waitingForReviewers):
+            StatusMenuSectionMetadata(
+                title: "Waiting for reviewers",
+                searchQualifiers: ["author:@me", "review:required", "-is:draft"],
+                stackMemberDisplay: StatusMenuStackMemberSectionDisplay(
+                    title: "Waiting",
+                    accessibilityLabel: "Authored workflow section: Waiting for reviewers",
+                    color: .secondary
+                )
+            )
+        case .authored(.approved):
+            StatusMenuSectionMetadata(
+                title: "Approved",
+                searchQualifiers: ["author:@me", "review:approved", "-is:draft"],
+                stackMemberDisplay: StatusMenuStackMemberSectionDisplay(
+                    title: "Approved",
+                    accessibilityLabel: "Authored workflow section: Approved",
+                    color: .green
+                )
+            )
+        case .authored(.drafts):
+            StatusMenuSectionMetadata(
+                title: "Drafts",
+                searchQualifiers: ["author:@me", "is:draft"],
+                stackMemberDisplay: StatusMenuStackMemberSectionDisplay(
+                    title: "Draft",
+                    accessibilityLabel: "Authored workflow section: Drafts",
+                    color: .secondary
+                )
+            )
+        case .legacyMyPRs:
+            StatusMenuSectionMetadata(
+                title: "My PRs",
+                searchQualifiers: ["author:@me"],
+                stackMemberDisplay: StatusMenuStackMemberSectionDisplay(
+                    title: "My PR",
+                    accessibilityLabel: "Authored pull request without a known Authored workflow section",
+                    color: .secondary
+                )
+            )
         }
     }
 }
 
+private struct StatusMenuSectionMetadata {
+    let title: String
+    let searchQualifiers: [String]
+    let stackMemberDisplay: StatusMenuStackMemberSectionDisplay
+}
+
 private struct StatusMenuPullRequestEntry {
     let pullRequest: PullRequestPresentation
-    let stack: PullRequestStack?
+    let stackRowContext: StatusMenuStackRowContext?
+}
+
+private struct StatusMenuStackRowContext {
+    let stack: PullRequestStack
+    let sectionMemberCount: Int
+}
+
+private struct StatusMenuStackMembershipCount {
+    let sectionCount: Int
+    let totalCount: Int
+}
+
+private struct StatusMenuStackMemberSectionDisplay {
+    let title: String
+    let accessibilityLabel: String
+    let color: Color
 }
 
 private struct StatusMenuActionDescriptor {
@@ -702,7 +839,8 @@ private final class StatusMenuRowHostingView<Content: View>: NSHostingView<Conte
 private struct StatusMenuPullRequestRow: View {
     let pullRequest: PullRequestPresentation
     @ObservedObject var highlightState: StatusMenuHighlightState
-    let additionalStackCount: Int
+    let stackMembershipCount: StatusMenuStackMembershipCount?
+    let stackMemberSection: StatusMenuSection?
     let showsDisclosure: Bool
 
     var body: some View {
@@ -714,8 +852,17 @@ private struct StatusMenuPullRequestRow: View {
                 .truncationMode(.tail)
                 .layoutPriority(1)
             Spacer(minLength: 4)
-            if additionalStackCount > 0 {
-                Text("+\(additionalStackCount)")
+            if let stackMemberSection {
+                let display = stackMemberSection.stackMemberDisplay
+                Text(display.title)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(
+                        highlightState.isHighlighted ? Color.white.opacity(0.9) : display.color
+                    )
+                    .lineLimit(1)
+            }
+            if let stackMembershipCount {
+                Text("\(stackMembershipCount.sectionCount)/\(stackMembershipCount.totalCount)")
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(highlightState.isHighlighted ? Color.white : Color.accentColor)
                     .padding(.horizontal, 5)
