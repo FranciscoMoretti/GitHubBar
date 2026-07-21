@@ -4,7 +4,7 @@
 
 ### Review at scale, from your menu bar.
 
-[![Latest validation build](https://img.shields.io/github/v/release/FranciscoMoretti/GitHubBar?include_prereleases&style=flat-square&label=validation&color=2f81f7)](https://github.com/FranciscoMoretti/GitHubBar/releases)
+[![Latest release](https://img.shields.io/github/v/release/FranciscoMoretti/GitHubBar?style=flat-square&label=release&color=2f81f7)](https://github.com/FranciscoMoretti/GitHubBar/releases/latest)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-0d1117?style=flat-square&logo=apple&logoColor=white)](https://github.com/FranciscoMoretti/GitHubBar/releases)
 [![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white)](https://www.swift.org/)
 
@@ -41,18 +41,9 @@
 
 3. Unzip GitHubBar and move it to **Applications**.
 
-Because validation builds are not yet notarized, macOS will block a fresh download on its first launch. Try to open GitHubBar once, then choose **Open Anyway** under **System Settings → Privacy & Security**.
+Stable releases are Developer ID signed and notarized for Gatekeeper. GitHubBar requires macOS 14 or newer and runs on both Apple silicon and Intel Macs.
 
-Alternatively, allow GitHubBar from Terminal:
-
-```sh
-xattr -dr com.apple.quarantine /Applications/GitHubBar.app
-open /Applications/GitHubBar.app
-```
-
-Both options create an exception for GitHubBar only; they do not disable Gatekeeper system-wide.
-
-GitHubBar requires macOS 14 or newer. Validation builds run on both Apple silicon and Intel Macs.
+Pre-release validation builds remain ad-hoc signed and may require **Open Anyway** under **System Settings → Privacy & Security**.
 
 ## Privacy
 
@@ -66,7 +57,7 @@ scripts/generate-project.sh
 open GitHubBar.xcodeproj
 ```
 
-Run `scripts/check.sh` before submitting a pull request. Release details are in the [validation guide](docs/releases/validation-release.md).
+Run `scripts/check.sh` before submitting a pull request. Release details are in the [stable release runbook](docs/releases/stable-release-runbook.md) and [validation guide](docs/releases/validation-release.md).
 
 ---
 

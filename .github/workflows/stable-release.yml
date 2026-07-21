@@ -108,9 +108,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
+          NOTES_FILE: docs/releases/${{ inputs.version }}.md
         shell: bash
         run: |
           set -euo pipefail
+          test -f "$NOTES_FILE"
           shopt -s nullglob
           assets=(dist/stable/GitHubBar-*.zip dist/stable/GitHubBar-*.zip.sha256 dist/stable/appcast.xml)
           assets+=(dist/stable/*.delta)
@@ -118,7 +120,7 @@ jobs:
             --target "$GITHUB_SHA" \
             --latest \
             --title "GitHubBar $TAG" \
-            --notes-file docs/releases/stable-release-runbook.md
+            --notes-file "$NOTES_FILE"
 
       - name: Remove ephemeral credentials
         if: always()
