@@ -294,6 +294,9 @@ extension StatusItemController: NSMenuDelegate {
         let submenu = NSMenu()
         submenu.autoenablesItems = false
         submenu.delegate = self
+        let submenuWidth = StatusMenuSizing.stackSubmenuWidth(
+            visibleScreenWidth: statusItem.button?.window?.screen?.visibleFrame.width
+        )
 
         let header = NSMenuItem(
             title: "Stack · \(stack.pullRequests.count) pull requests",
@@ -307,7 +310,7 @@ extension StatusItemController: NSMenuDelegate {
                 pullRequestItem(
                     pullRequest,
                     stackMemberSection: stackMemberSection(for: pullRequest),
-                    width: Self.stackSubmenuWidth,
+                    width: submenuWidth,
                     keepsMenuOpenAfterOpening: true
                 )
             )
@@ -576,8 +579,7 @@ extension StatusItemController: NSMenuDelegate {
         NSApp.terminate(nil)
     }
 
-    private static let menuWidth: CGFloat = 560
-    private static let stackSubmenuWidth: CGFloat = 440
+    private static let menuWidth = StatusMenuSizing.mainMenuWidth
     private static let pullRequestRowHeight: CGFloat = 25
     private static let pullRequestLimit = 5
 }

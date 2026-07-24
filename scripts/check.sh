@@ -33,5 +33,14 @@ swiftc \
   -o .build/checks/avatar-image-cache-check
 .build/checks/avatar-image-cache-check
 
+swiftc \
+  -parse-as-library \
+  -swift-version 6 \
+  -strict-concurrency=complete \
+  GitHubBar/StatusItem/StatusMenuSizing.swift \
+  GitHubBarChecks/StatusMenuSizingCheck.swift \
+  -o .build/checks/status-menu-sizing-check
+.build/checks/status-menu-sizing-check
+
 plutil -lint GitHubBar/Resources/Info.plist
 xcodegen generate
