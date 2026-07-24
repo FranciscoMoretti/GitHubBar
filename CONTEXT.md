@@ -85,7 +85,7 @@ The Authored workflow section containing Draft pull requests.
 _Avoid_: Work in progress
 
 **Review roster**:
-The people and teams requested to review a pull request, plus people who have already submitted a review. It exists for visibility and does not itself determine the Authored workflow section.
+The people and teams currently requested to review a pull request, plus people whose submitted review approved the pull request or requested changes. Comment-only review activity and the Pull request author are excluded. It exists for visibility and does not itself determine the Authored workflow section.
 _Avoid_: Reviewer list, assignees, participants
 
 **Repository scope**:

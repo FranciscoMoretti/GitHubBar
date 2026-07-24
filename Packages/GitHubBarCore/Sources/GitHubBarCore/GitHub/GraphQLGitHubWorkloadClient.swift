@@ -314,7 +314,7 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
                         records[index].reviewRequestsPageInfo = reviewRequests.pageInfo
                     }
                     if let reviews = pullRequest.reviews {
-                        records[index].reviewAuthors.append(contentsOf: reviews.nodes.compactMap(\.author))
+                        records[index].reviews.append(contentsOf: reviews.nodes)
                         records[index].reviewsPageInfo = reviews.pageInfo
                     }
                 } catch {
@@ -528,7 +528,10 @@ private extension GraphQLGitHubWorkloadClient {
             pageInfo { hasNextPage endCursor }
           }
           reviews(first: 100) {
-            nodes { author { login avatarUrl } }
+            nodes {
+              state
+              author { login avatarUrl }
+            }
             pageInfo { hasNextPage endCursor }
           }
         }
@@ -561,7 +564,10 @@ private extension GraphQLGitHubWorkloadClient {
             pageInfo { hasNextPage endCursor }
           }
           reviews(first: 100, after: $reviewsCursor) @include(if: $includeReviews) {
-            nodes { author { login avatarUrl } }
+            nodes {
+              state
+              author { login avatarUrl }
+            }
             pageInfo { hasNextPage endCursor }
           }
         }
@@ -853,6 +859,15 @@ private struct ReviewConnectionDTO: Decodable, Sendable {
 
 private struct ReviewDTO: Decodable, Sendable {
     let author: ActorDTO?
+    let state: ReviewStateDTO
+}
+
+private enum ReviewStateDTO: String, Decodable, Sendable {
+    case approved = "APPROVED"
+    case changesRequested = "CHANGES_REQUESTED"
+    case commented = "COMMENTED"
+    case dismissed = "DISMISSED"
+    case pending = "PENDING"
 }
 
 private struct ActorDTO: Decodable, Sendable {
@@ -901,7 +916,7 @@ private struct HydratedRecord: Sendable {
     let url: URL
     let updatedAt: Date
     var requestedReviewers: [RequestedReviewerDTO]
-    var reviewAuthors: [ActorDTO]
+    var reviews: [ReviewDTO]
     var reviewRequestsPageInfo: PageInfoDTO
     var reviewsPageInfo: PageInfoDTO
 
@@ -927,7 +942,7 @@ private struct HydratedRecord: Sendable {
         self.url = url
         self.updatedAt = updatedAt
         requestedReviewers = dto.reviewRequests.nodes.compactMap(\.requestedReviewer)
-        reviewAuthors = dto.reviews.nodes.compactMap(\.author)
+        reviews = dto.reviews.nodes
         reviewRequestsPageInfo = dto.reviewRequests.pageInfo
         reviewsPageInfo = dto.reviews.pageInfo
     }
@@ -937,14 +952,16 @@ private struct HydratedRecord: Sendable {
     }
 
     var presentation: PullRequestPresentation {
-        let requestedReviewerPresentations = requestedReviewers.compactMap(\.presentation)
+        let requestedReviewerPresentations = requestedReviewers
+            .compactMap(\.presentation)
+            .filter { $0.id != author.id }
         var reviewersByID: [String: ReviewerPresentation] = [:]
         var reviewerOrder: [String] = []
         for reviewer in requestedReviewerPresentations {
             if reviewersByID[reviewer.id] == nil { reviewerOrder.append(reviewer.id) }
             reviewersByID[reviewer.id] = reviewer
         }
-        for reviewer in reviewAuthors.map(\.reviewerPresentation) {
+        for reviewer in reviews.compactMap(\.reviewerPresentation) where reviewer.id != author.id {
             if reviewersByID[reviewer.id] == nil { reviewerOrder.append(reviewer.id) }
             reviewersByID[reviewer.id] = reviewer
         }
@@ -966,6 +983,13 @@ private struct HydratedRecord: Sendable {
             requestedReviewers: requestedReviewerPresentations,
             reviewers: reviewerOrder.compactMap { reviewersByID[$0] }
         )
+    }
+}
+
+private extension ReviewDTO {
+    var reviewerPresentation: ReviewerPresentation? {
+        guard state == .approved || state == .changesRequested else { return nil }
+        return author?.reviewerPresentation
     }
 }
 
