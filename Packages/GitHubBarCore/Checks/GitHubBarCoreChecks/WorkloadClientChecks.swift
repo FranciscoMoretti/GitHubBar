@@ -52,12 +52,35 @@ enum WorkloadClientChecks {
         )
         check(snapshot.needsYourReview.first?.reviewers.count == 3, "Review roster combines requests, review decisions, and later pages", failures: &failures)
         check(snapshot.availableRepositories.map(\.id) == ["REPO-1", "REPO-2"], "Accessible Repository catalog is independent of active PRs", failures: &failures)
+        check(
+            snapshot.pullRequestStacks.first?.pullRequests.map(\.id) == ["PR-1", "PR-4", "PR-5"],
+            "Reconciliation hydrates every member of a GitHub Pull request stack",
+            failures: &failures
+        )
+        check(
+            snapshot.pullRequestStacks.first?.pullRequests.last?.state == .merged,
+            "Merged layers remain available as Pull request stack navigation context",
+            failures: &failures
+        )
         let accountWideQueries = await transport.searchQueries()
         check(
             !accountWideQueries.isEmpty && accountWideQueries.allSatisfy { !$0.contains("repo:") },
             "Reconciliation discovers the account-wide workload without Repository scope qualifiers",
             failures: &failures
         )
+
+        let closedDuringHydrationResult = await GraphQLGitHubWorkloadClient(
+            transport: ClosedDuringHydrationFixtureTransport()
+        ).reconcile(account: account)
+        if case let .complete(closedSnapshot, _) = closedDuringHydrationResult {
+            check(
+                closedSnapshot.authoredPullRequests.isEmpty,
+                "A Pull request closed during Reconciliation is navigation context, not active workload",
+                failures: &failures
+            )
+        } else {
+            failures.append("FAILED: A Pull request closed during Reconciliation remains a complete result")
+        }
 
         let largeRosterResult = await GraphQLGitHubWorkloadClient(
             transport: WorkloadFixtureTransport(usesLargeRoster: true)
@@ -146,6 +169,31 @@ enum WorkloadClientChecks {
 
     private static func check(_ condition: Bool, _ message: String, failures: inout [String]) {
         if !condition { failures.append("FAILED: \(message)") }
+    }
+}
+
+private actor ClosedDuringHydrationFixtureTransport: GitHubTransport {
+    private let base = WorkloadFixtureTransport()
+
+    func execute(body: Data, accessToken: GitHubAccessToken) async throws -> GitHubTransportResponse {
+        let object = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+        let operationName = object?["operationName"] as? String
+        let variables = object?["variables"] as? [String: Any]
+        let response = try await base.execute(body: body, accessToken: accessToken)
+        guard operationName == "HydratePullRequests",
+              (variables?["ids"] as? [String])?.contains("PR-3") == true,
+              let responseBody = String(data: response.data, encoding: .utf8) else {
+            return response
+        }
+        let closedBody = responseBody.replacingOccurrences(
+            of: #""isDraft":true,"reviewDecision":"REVIEW_REQUIRED","state":"OPEN""#,
+            with: #""isDraft":true,"reviewDecision":"REVIEW_REQUIRED","state":"CLOSED""#
+        )
+        return GitHubTransportResponse(
+            statusCode: response.statusCode,
+            headers: response.headers,
+            data: Data(closedBody.utf8)
+        )
     }
 }
 
@@ -356,6 +404,8 @@ private actor WorkloadFixtureTransport: GitHubTransport {
         case "HydratePullRequests":
             if usesLargeRoster {
                 response = Self.largeRosterHydrationResponse
+            } else if (variables?["ids"] as? [String])?.contains("PR-4") == true {
+                response = Self.stackMemberHydrationResponse
             } else {
                 response = Self.hydrationResponse
                     .replacingOccurrences(
@@ -367,6 +417,8 @@ private actor WorkloadFixtureTransport: GitHubTransport {
                         with: #""hasNextPage":true,"endCursor":"next""#
                     )
             }
+        case "HydratePullRequestStacks":
+            response = #"{"data":{"nodes":[{"id":"STACK-350","entries":{"nodes":[{"pullRequest":{"id":"PR-1"}},{"pullRequest":{"id":"PR-4"}},{"pullRequest":{"id":"PR-5"}}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}],"rateLimit":{"cost":1,"remaining":4995,"resetAt":"2026-07-15T20:00:00Z"}}}"#
         case "PullRequestRosterPage":
             response = #"{"data":{"node":{"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"User","login":"dave","avatarUrl":null}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}},"rateLimit":{"cost":1,"remaining":4995,"resetAt":"2026-07-15T20:00:00Z"}}}"#
         default:
@@ -381,7 +433,9 @@ private actor WorkloadFixtureTransport: GitHubTransport {
         return #"{"data":{"search":{"nodes":[\#(nodes)],"pageInfo":{"hasNextPage":false,"endCursor":null}},"rateLimit":{"cost":1,"remaining":4997,"resetAt":"2026-07-15T20:00:00Z"}}}"#
     }
 
-    private static let hydrationResponse = #"{"data":{"nodes":[{"id":"PR-1","number":1,"title":"Direct review","url":"https://github.com/alaro-ai/app/pull/1","isDraft":false,"state":"OPEN","updatedAt":"2026-07-15T12:00:00Z","author":{"login":"alice","avatarUrl":"https://avatars.example/alice.png"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"User","login":"FranciscoMoretti","avatarUrl":null}},{"requestedReviewer":{"__typename":"User","login":"alice","avatarUrl":null}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[{"author":{"login":"bob","avatarUrl":null},"state":"APPROVED"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}},{"id":"PR-2","number":2,"title":"Team review","url":"https://github.com/alaro-ai/app/pull/2","isDraft":false,"state":"OPEN","updatedAt":"2026-07-15T13:00:00Z","author":{"login":"carol"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"Team","name":"devs","slug":"devs","avatarUrl":null,"organization":{"login":"alaro-ai"}}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}},{"id":"PR-3","number":3,"title":"My draft","url":"https://github.com/alaro-ai/app/pull/3","isDraft":true,"state":"OPEN","updatedAt":"2026-07-15T14:00:00Z","author":{"login":"FranciscoMoretti"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"User","login":"alice","avatarUrl":null}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[{"author":{"login":"FranciscoMoretti","avatarUrl":null},"state":"APPROVED"},{"author":{"login":"bob","avatarUrl":null},"state":"COMMENTED"},{"author":{"login":"carol","avatarUrl":null},"state":"APPROVED"},{"author":{"login":"erin","avatarUrl":null},"state":"CHANGES_REQUESTED"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}],"rateLimit":{"cost":1,"remaining":4996,"resetAt":"2026-07-15T20:00:00Z"}}}"#
+    private static let hydrationResponse = #"{"data":{"nodes":[{"id":"PR-1","number":1,"title":"Direct review","url":"https://github.com/alaro-ai/app/pull/1","isDraft":false,"state":"OPEN","updatedAt":"2026-07-15T12:00:00Z","author":{"login":"alice","avatarUrl":"https://avatars.example/alice.png"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"stack":{"id":"STACK-350","number":350,"size":3},"stackEntry":{"position":1},"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"User","login":"FranciscoMoretti","avatarUrl":null}},{"requestedReviewer":{"__typename":"User","login":"alice","avatarUrl":null}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[{"author":{"login":"bob","avatarUrl":null},"state":"APPROVED"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}},{"id":"PR-2","number":2,"title":"Team review","url":"https://github.com/alaro-ai/app/pull/2","isDraft":false,"state":"OPEN","updatedAt":"2026-07-15T13:00:00Z","author":{"login":"carol"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"Team","name":"devs","slug":"devs","avatarUrl":null,"organization":{"login":"alaro-ai"}}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}},{"id":"PR-3","number":3,"title":"My draft","url":"https://github.com/alaro-ai/app/pull/3","isDraft":true,"state":"OPEN","updatedAt":"2026-07-15T14:00:00Z","author":{"login":"FranciscoMoretti"},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"User","login":"alice","avatarUrl":null}}],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[{"author":{"login":"FranciscoMoretti","avatarUrl":null},"state":"APPROVED"},{"author":{"login":"bob","avatarUrl":null},"state":"COMMENTED"},{"author":{"login":"carol","avatarUrl":null},"state":"APPROVED"},{"author":{"login":"erin","avatarUrl":null},"state":"CHANGES_REQUESTED"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}],"rateLimit":{"cost":1,"remaining":4996,"resetAt":"2026-07-15T20:00:00Z"}}}"#
+
+    private static let stackMemberHydrationResponse = #"{"data":{"nodes":[{"id":"PR-4","number":4,"title":"Stack navigation context","url":"https://github.com/alaro-ai/app/pull/4","isDraft":false,"state":"OPEN","updatedAt":"2026-07-15T15:00:00Z","author":{"login":"zoe","avatarUrl":null},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"stack":{"id":"STACK-350","number":350,"size":3},"stackEntry":{"position":2},"reviewRequests":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}},{"id":"PR-5","number":5,"title":"Merged foundation","url":"https://github.com/alaro-ai/app/pull/5","isDraft":false,"state":"MERGED","updatedAt":"2026-07-15T11:00:00Z","author":{"login":"zoe","avatarUrl":null},"repository":{"id":"REPO-1","nameWithOwner":"alaro-ai/app"},"stack":{"id":"STACK-350","number":350,"size":3},"stackEntry":{"position":3},"reviewRequests":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviews":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}],"rateLimit":{"cost":1,"remaining":4994,"resetAt":"2026-07-15T20:00:00Z"}}}"#
 
     private static var largeRosterHydrationResponse: String {
         let reviewers = (["FranciscoMoretti"] + (1..<100).map { "reviewer-\($0)" })

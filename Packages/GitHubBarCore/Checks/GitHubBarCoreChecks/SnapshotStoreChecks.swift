@@ -72,6 +72,8 @@ enum SnapshotStoreChecks {
             failures.append("FAILED: Legacy Snapshot version reports the correct failure")
         }
 
+        checkPartialStackMerging(failures: &failures)
+
         let memoryStore = InMemorySnapshotStore(snapshot: snapshot)
         let engine = WorkloadEngine(
             accountConnection: DelayedAccountConnection(),
@@ -95,6 +97,94 @@ enum SnapshotStoreChecks {
 
         try? FileManager.default.removeItem(at: directory)
         return failures
+    }
+
+    private static func checkPartialStackMerging(failures: inout [String]) {
+        let priorRoot = stackedPullRequest(id: "STACK-ROOT", number: 1)
+        let priorTop = stackedPullRequest(id: "STACK-TOP", number: 2, position: 2)
+        let priorStack = PullRequestStack(
+            id: "STACK-1",
+            number: 1,
+            pullRequests: [priorRoot, priorTop]
+        )
+        let previous = WorkloadSnapshot(
+            hostname: "github.com",
+            accountLogin: "FranciscoMoretti",
+            capturedAt: Date(timeIntervalSince1970: 1),
+            completeness: .complete,
+            availableRepositories: [],
+            needsYourReview: [],
+            authoredPullRequests: [priorRoot],
+            pullRequestStacks: [priorStack]
+        )
+        let unstackedRoot = PullRequestPresentation(
+            id: priorRoot.id,
+            repositoryID: priorRoot.repositoryID,
+            repositoryNameWithOwner: priorRoot.repositoryNameWithOwner,
+            number: priorRoot.number,
+            title: priorRoot.title,
+            url: priorRoot.url,
+            isDraft: false,
+            updatedAt: Date(timeIntervalSince1970: 3),
+            reviewers: []
+        )
+        let unstackedUpdate = WorkloadSnapshot(
+            hostname: previous.hostname,
+            accountLogin: previous.accountLogin,
+            capturedAt: Date(timeIntervalSince1970: 3),
+            completeness: .partial,
+            availableRepositories: [],
+            needsYourReview: [],
+            authoredPullRequests: [unstackedRoot],
+            pullRequestStacks: []
+        )
+        let mergedUnstacked = unstackedUpdate.mergingConfirmedUpdates(into: previous)
+        check(
+            mergedUnstacked.pullRequestStacks.isEmpty,
+            "A confirmed unstacked pull request invalidates its stale cached Stack",
+            failures: &failures
+        )
+
+        let unchangedUpdate = WorkloadSnapshot(
+            hostname: previous.hostname,
+            accountLogin: previous.accountLogin,
+            capturedAt: Date(timeIntervalSince1970: 4),
+            completeness: .partial,
+            availableRepositories: [],
+            needsYourReview: [],
+            authoredPullRequests: [priorRoot],
+            pullRequestStacks: []
+        )
+        let mergedUnchanged = unchangedUpdate.mergingConfirmedUpdates(into: previous)
+        check(
+            mergedUnchanged.pullRequestStacks == [priorStack],
+            "A partial discovery failure retains a cached Stack with confirmed membership",
+            failures: &failures
+        )
+    }
+
+    private static func stackedPullRequest(
+        id: String,
+        number: Int,
+        position: Int = 1
+    ) -> PullRequestPresentation {
+        PullRequestPresentation(
+            id: id,
+            repositoryID: "REPO",
+            repositoryNameWithOwner: "owner/repo",
+            number: number,
+            title: "Stack member \(number)",
+            url: URL(string: "https://github.com/owner/repo/pull/\(number)")!,
+            isDraft: false,
+            stackMembership: PullRequestStackMembership(
+                id: "STACK-1",
+                number: 1,
+                size: 2,
+                position: position
+            ),
+            updatedAt: Date(timeIntervalSince1970: TimeInterval(number)),
+            reviewers: []
+        )
     }
 
     private static func fixtureSnapshot() -> WorkloadSnapshot {

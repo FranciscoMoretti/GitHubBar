@@ -467,6 +467,15 @@ public actor WorkloadEngine {
                 pinnedRepositoryIDs: pinnedRepositoryIDs
             )
         }
+        state.pullRequestStacks = snapshot.pullRequestStacks.filter { stack in
+            guard let repositoryID = (stack.root ?? stack.pullRequests.first)?.repositoryID else {
+                return false
+            }
+            return scope.includes(
+                repositoryID: repositoryID,
+                pinnedRepositoryIDs: pinnedRepositoryIDs
+            )
+        }
         state.lastUpdatedAt = snapshot.capturedAt
     }
 
@@ -517,6 +526,7 @@ public actor WorkloadEngine {
         state.availableRepositories = []
         state.needsYourReview = []
         state.authoredPullRequests = []
+        state.pullRequestStacks = []
         state.lastUpdatedAt = nil
         state.refreshHealth = .idle
         state.isRefreshing = false

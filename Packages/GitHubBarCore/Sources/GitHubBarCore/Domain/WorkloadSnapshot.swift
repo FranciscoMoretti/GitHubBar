@@ -1,7 +1,7 @@
 import Foundation
 
 public struct WorkloadSnapshot: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 2
+    public static let currentSchemaVersion = 3
 
     public enum Completeness: String, Codable, Equatable, Sendable {
         case complete
@@ -16,11 +16,12 @@ public struct WorkloadSnapshot: Codable, Equatable, Sendable {
     public let availableRepositories: [RepositoryChoice]
     public let needsYourReview: [PullRequestPresentation]
     public let authoredPullRequests: [PullRequestPresentation]
+    public let pullRequestStacks: [PullRequestStack]
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, hostname, accountLogin, capturedAt, completeness, availableRepositories
         case needsYourReview = "waitingForReview"
-        case authoredPullRequests
+        case authoredPullRequests, pullRequestStacks
     }
 
     public init(
@@ -31,7 +32,8 @@ public struct WorkloadSnapshot: Codable, Equatable, Sendable {
         completeness: Completeness,
         availableRepositories: [RepositoryChoice],
         needsYourReview: [PullRequestPresentation],
-        authoredPullRequests: [PullRequestPresentation]
+        authoredPullRequests: [PullRequestPresentation],
+        pullRequestStacks: [PullRequestStack] = []
     ) {
         self.schemaVersion = schemaVersion
         self.hostname = hostname
@@ -41,6 +43,7 @@ public struct WorkloadSnapshot: Codable, Equatable, Sendable {
         self.availableRepositories = availableRepositories
         self.needsYourReview = needsYourReview
         self.authoredPullRequests = authoredPullRequests
+        self.pullRequestStacks = pullRequestStacks
     }
 }
 
@@ -67,6 +70,30 @@ public extension WorkloadSnapshot {
             (previous.availableRepositories + availableRepositories).map { ($0.id, $0) },
             uniquingKeysWith: { _, newest in newest }
         )
+        let confirmedPullRequestByID = Dictionary(
+            (needsYourReview + authoredPullRequests).map { ($0.id, $0) },
+            uniquingKeysWith: { _, confirmed in confirmed }
+        )
+        let invalidatedPreviousStackIDs = Set(
+            previous.pullRequestStacks.compactMap { stack in
+                let membershipChanged = stack.pullRequests.contains { previousMember in
+                    guard let confirmed = confirmedPullRequestByID[previousMember.id] else {
+                        return false
+                    }
+                    return confirmed.stackMembership?.id != stack.id
+                }
+                return membershipChanged ? stack.id : nil
+            }
+        )
+        let stacksByID = Dictionary(
+            (
+                previous.pullRequestStacks.filter {
+                    !invalidatedPreviousStackIDs.contains($0.id)
+                }
+                + pullRequestStacks
+            ).map { ($0.id, $0) },
+            uniquingKeysWith: { _, confirmed in confirmed }
+        )
 
         return WorkloadSnapshot(
             schemaVersion: schemaVersion,
@@ -76,7 +103,11 @@ public extension WorkloadSnapshot {
             completeness: .partial,
             availableRepositories: repositoryByID.values.sorted { $0.nameWithOwner.localizedCaseInsensitiveCompare($1.nameWithOwner) == .orderedAscending },
             needsYourReview: mergedWaiting,
-            authoredPullRequests: mergedAuthored
+            authoredPullRequests: mergedAuthored,
+            pullRequestStacks: stacksByID.values.sorted {
+                (($0.root ?? $0.pullRequests.first)?.updatedAt ?? .distantPast)
+                    < (($1.root ?? $1.pullRequests.first)?.updatedAt ?? .distantPast)
+            }
         )
     }
 

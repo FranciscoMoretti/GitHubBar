@@ -45,11 +45,11 @@ An Authored pull request whose current GitHub state is draft. Drafts take preced
 _Avoid_: Work in progress
 
 **Pull request stack**:
-An ordered group of open pull requests in one repository where each member after the first targets the preceding member's head branch. A Pull request stack provides navigation context but does not change any member's Authored workflow section or Review-request status.
+An ordered group of pull requests identified by GitHub's native Stack membership and position. Open members can appear in the Account workload; merged and closed members are retained only as navigation context. A Pull request stack does not change any member's Authored workflow section or Review-request status.
 _Avoid_: Batch, series, chain
 
 **Stack root**:
-The first pull request in a Pull request stack. Its base branch is not the head branch of another open member in that stack.
+The pull request at GitHub Stack position 1.
 _Avoid_: Parent PR, first change
 
 **Review decision**:
@@ -113,7 +113,7 @@ A complete network refresh that rediscovers the Account workload and hydrates it
 _Avoid_: Sync, poll, incremental update
 
 **Snapshot**:
-An account-bound, timestamped representation of the Account workload, including whether the Reconciliation that produced it was complete or partial. A Snapshot is independent of Repository scope.
+An account-bound, timestamped representation of the Account workload and its Pull request stack navigation context, including whether the Reconciliation that produced it was complete or partial. A Snapshot is independent of Repository scope.
 _Avoid_: Cache, response, feed
 
 **Refresh health**:

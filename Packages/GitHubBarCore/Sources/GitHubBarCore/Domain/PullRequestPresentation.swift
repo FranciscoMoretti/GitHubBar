@@ -4,15 +4,14 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
     public let id: String
     public let repositoryID: String
     public let repositoryNameWithOwner: String
-    public let baseRefName: String?
-    public let headRefName: String?
-    public let headRepositoryID: String?
     public let number: Int
     public let title: String
     public let url: URL
     public let isDraft: Bool
+    public let state: PullRequestState
     public let author: PullRequestAuthorPresentation?
     public let reviewDecision: PullRequestReviewDecision?
+    public let stackMembership: PullRequestStackMembership?
     public let updatedAt: Date
     public let requestedReviewers: [ReviewerPresentation]?
     public let reviewers: [ReviewerPresentation]
@@ -21,15 +20,14 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
         id: String,
         repositoryID: String,
         repositoryNameWithOwner: String,
-        baseRefName: String? = nil,
-        headRefName: String? = nil,
-        headRepositoryID: String? = nil,
         number: Int,
         title: String,
         url: URL,
         isDraft: Bool,
+        state: PullRequestState = .open,
         author: PullRequestAuthorPresentation? = nil,
         reviewDecision: PullRequestReviewDecision? = nil,
+        stackMembership: PullRequestStackMembership? = nil,
         updatedAt: Date,
         requestedReviewers: [ReviewerPresentation]? = [],
         reviewers: [ReviewerPresentation]
@@ -37,21 +35,21 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
         self.id = id
         self.repositoryID = repositoryID
         self.repositoryNameWithOwner = repositoryNameWithOwner
-        self.baseRefName = baseRefName
-        self.headRefName = headRefName
-        self.headRepositoryID = headRepositoryID
         self.number = number
         self.title = title
         self.url = url
         self.isDraft = isDraft
+        self.state = state
         self.author = author
         self.reviewDecision = reviewDecision
+        self.stackMembership = stackMembership
         self.updatedAt = updatedAt
         self.requestedReviewers = requestedReviewers
         self.reviewers = reviewers
     }
 
     public var authoredSection: AuthoredPullRequestSection? {
+        guard state == .open else { return nil }
         if isDraft { return .drafts }
         switch reviewDecision {
         case .changesRequested:
@@ -67,9 +65,9 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, repositoryID, repositoryNameWithOwner, baseRefName, headRefName, headRepositoryID
-        case number, title, url, isDraft, author
-        case reviewDecision, updatedAt, requestedReviewers, reviewers
+        case id, repositoryID, repositoryNameWithOwner
+        case number, title, url, isDraft, state, author
+        case reviewDecision, stackMembership, updatedAt, requestedReviewers, reviewers
     }
 
     public init(from decoder: any Decoder) throws {
@@ -77,15 +75,17 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
         id = try container.decode(String.self, forKey: .id)
         repositoryID = try container.decode(String.self, forKey: .repositoryID)
         repositoryNameWithOwner = try container.decode(String.self, forKey: .repositoryNameWithOwner)
-        baseRefName = try container.decodeIfPresent(String.self, forKey: .baseRefName)
-        headRefName = try container.decodeIfPresent(String.self, forKey: .headRefName)
-        headRepositoryID = try container.decodeIfPresent(String.self, forKey: .headRepositoryID)
         number = try container.decode(Int.self, forKey: .number)
         title = try container.decode(String.self, forKey: .title)
         url = try container.decode(URL.self, forKey: .url)
         isDraft = try container.decode(Bool.self, forKey: .isDraft)
+        state = try container.decodeIfPresent(PullRequestState.self, forKey: .state) ?? .open
         author = try container.decodeIfPresent(PullRequestAuthorPresentation.self, forKey: .author)
         reviewDecision = try container.decodeIfPresent(PullRequestReviewDecision.self, forKey: .reviewDecision)
+        stackMembership = try container.decodeIfPresent(
+            PullRequestStackMembership.self,
+            forKey: .stackMembership
+        )
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         reviewers = try container.decode([ReviewerPresentation].self, forKey: .reviewers)
         requestedReviewers = try container.decodeIfPresent(
@@ -93,6 +93,12 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
             forKey: .requestedReviewers
         )
     }
+}
+
+public enum PullRequestState: String, Codable, Equatable, Sendable {
+    case open = "OPEN"
+    case closed = "CLOSED"
+    case merged = "MERGED"
 }
 
 public struct PullRequestAuthorPresentation: Codable, Equatable, Identifiable, Sendable {

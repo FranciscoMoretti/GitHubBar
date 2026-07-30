@@ -141,12 +141,8 @@ extension StatusItemController: NSMenuDelegate {
     }
 
     private func pullRequestStacksByMemberID() -> [String: PullRequestStack] {
-        var pullRequestsByID: [String: PullRequestPresentation] = [:]
-        for pullRequest in appModel.state.needsYourReview + appModel.state.authoredPullRequests {
-            pullRequestsByID[pullRequest.id] = pullRequest
-        }
         var stacksByMemberID: [String: PullRequestStack] = [:]
-        for stack in PullRequestStackResolver.stacks(in: Array(pullRequestsByID.values)) {
+        for stack in appModel.state.pullRequestStacks {
             for pullRequest in stack.pullRequests {
                 stacksByMemberID[pullRequest.id] = stack
             }
@@ -230,7 +226,7 @@ extension StatusItemController: NSMenuDelegate {
             stackMembershipCount: stackRowContext.map { context in
                 StatusMenuStackMembershipCount(
                     sectionCount: context.sectionMemberCount,
-                    totalCount: context.stack.pullRequests.count
+                    totalCount: context.stack.size
                 )
             },
             stackMemberSection: stackMemberSection,
@@ -298,8 +294,11 @@ extension StatusItemController: NSMenuDelegate {
             visibleScreenWidth: statusItem.button?.window?.screen?.visibleFrame.width
         )
 
+        let memberCountLabel = stack.pullRequests.count == stack.size
+            ? "\(stack.size) pull requests"
+            : "\(stack.pullRequests.count) of \(stack.size) pull requests available"
         let header = NSMenuItem(
-            title: "Stack · \(stack.pullRequests.count) pull requests",
+            title: "Stack #\(stack.number) · \(memberCountLabel)",
             action: nil,
             keyEquivalent: ""
         )
@@ -314,6 +313,20 @@ extension StatusItemController: NSMenuDelegate {
                     keepsMenuOpenAfterOpening: true
                 )
             )
+        }
+        if let navigationURL = stack.navigationURL {
+            let viewStack = NSMenuItem(
+                title: "View stack on GitHub ↗",
+                action: #selector(openURL(_:)),
+                keyEquivalent: ""
+            )
+            viewStack.target = self
+            viewStack.representedObject = StatusMenuURLTarget(
+                url: navigationURL,
+                keepsMenuOpen: false
+            )
+            submenu.addItem(.separator())
+            submenu.addItem(viewStack)
         }
         return submenu
     }
@@ -484,10 +497,19 @@ extension StatusItemController: NSMenuDelegate {
         let author = pullRequest.author.map { "Author: \($0.displayName). " } ?? ""
         let reviewerNames = pullRequest.reviewers.map(\.displayName).joined(separator: ", ")
         let reviewers = reviewerNames.isEmpty ? "No reviewers" : "Reviewers: \(reviewerNames)"
-        let state = pullRequest.isDraft ? "Draft pull request. " : "Open pull request. "
+        let state = switch pullRequest.state {
+        case .open where pullRequest.isDraft:
+            "Draft pull request. "
+        case .open:
+            "Open pull request. "
+        case .closed:
+            "Closed pull request. "
+        case .merged:
+            "Merged pull request. "
+        }
         let stackLabel = stackRowContext.map { context in
             "Stack with \(context.sectionMemberCount) in this section and " +
-                "\(context.stack.pullRequests.count) total. "
+                "\(context.stack.size) total. "
         } ?? ""
         let section = stackMemberSection.map {
             "\($0.stackMemberDisplay.accessibilityLabel). "
@@ -499,13 +521,18 @@ extension StatusItemController: NSMenuDelegate {
     private func stackMemberSection(
         for pullRequest: PullRequestPresentation
     ) -> StatusMenuSection {
+        if pullRequest.state == .merged { return .mergedStackMember }
+        if pullRequest.state == .closed { return .closedStackMember }
         if appModel.state.needsYourReview.contains(where: { $0.id == pullRequest.id }) {
             return .needsYourReview
         }
-        if let authoredSection = pullRequest.authoredSection {
-            return .authored(authoredSection)
+        if appModel.state.authoredPullRequests.contains(where: { $0.id == pullRequest.id }) {
+            if let authoredSection = pullRequest.authoredSection {
+                return .authored(authoredSection)
+            }
+            return .legacyMyPRs
         }
-        return .legacyMyPRs
+        return .stackNavigationContext
     }
 
     private func pullRequestTooltip(
@@ -514,7 +541,10 @@ extension StatusItemController: NSMenuDelegate {
     ) -> String {
         let pullRequestLabel = "\(pullRequest.repositoryNameWithOwner) · #\(pullRequest.number): \(pullRequest.title)"
         guard let stack else { return pullRequestLabel }
-        return "\(pullRequestLabel) · \(stack.pullRequests.count) PR stack"
+        let countLabel = stack.pullRequests.count == stack.size
+            ? "\(stack.size) pull requests"
+            : "\(stack.pullRequests.count) of \(stack.size) pull requests available"
+        return "\(pullRequestLabel) · Stack #\(stack.number) · \(countLabel)"
     }
 
     private func open(_ url: URL, keepsMenuOpen: Bool = false) {
@@ -604,6 +634,9 @@ private enum StatusMenuSection {
     case needsYourReview
     case authored(AuthoredPullRequestSection)
     case legacyMyPRs
+    case stackNavigationContext
+    case mergedStackMember
+    case closedStackMember
 
     var title: String {
         metadata.title
@@ -686,6 +719,36 @@ private enum StatusMenuSection {
                 stackMemberDisplay: StatusMenuStackMemberSectionDisplay(
                     title: "My PR",
                     accessibilityLabel: "Authored pull request without a known Authored workflow section",
+                    color: .secondary
+                )
+            )
+        case .stackNavigationContext:
+            StatusMenuSectionMetadata(
+                title: "Stack navigation context",
+                searchQualifiers: [],
+                stackMemberDisplay: StatusMenuStackMemberSectionDisplay(
+                    title: "Stack",
+                    accessibilityLabel: "Pull request included for Stack navigation context",
+                    color: .secondary
+                )
+            )
+        case .mergedStackMember:
+            StatusMenuSectionMetadata(
+                title: "Merged",
+                searchQualifiers: [],
+                stackMemberDisplay: StatusMenuStackMemberSectionDisplay(
+                    title: "Merged",
+                    accessibilityLabel: "Pull request state: Merged",
+                    color: .purple
+                )
+            )
+        case .closedStackMember:
+            StatusMenuSectionMetadata(
+                title: "Closed",
+                searchQualifiers: [],
+                stackMemberDisplay: StatusMenuStackMemberSectionDisplay(
+                    title: "Closed",
+                    accessibilityLabel: "Pull request state: Closed",
                     color: .secondary
                 )
             )

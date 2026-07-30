@@ -7,37 +7,56 @@ enum PullRequestStackChecks {
         let root = pullRequest(
             id: "PR-2872",
             number: 2872,
-            base: "main",
-            head: "skills-1",
+            stackID: "STACK-350",
+            stackNumber: 350,
+            stackSize: 3,
+            stackPosition: 1,
             updatedAt: 1
         )
         let middle = pullRequest(
             id: "PR-2873",
             number: 2873,
-            base: "skills-1",
-            head: "skills-2",
+            stackID: "STACK-350",
+            stackNumber: 350,
+            stackSize: 3,
+            stackPosition: 2,
             updatedAt: 2
         )
         let top = pullRequest(
             id: "PR-2874",
             number: 2874,
-            base: "skills-2",
-            head: "skills-3",
+            stackID: "STACK-350",
+            stackNumber: 350,
+            stackSize: 3,
+            stackPosition: 3,
             updatedAt: 3
         )
         let unrelated = pullRequest(
             id: "PR-2860",
             number: 2860,
-            base: "main",
-            head: "north-star",
             updatedAt: 4
         )
 
         let stacks = PullRequestStackResolver.stacks(in: [top, unrelated, root, middle])
-        check(stacks.count == 1, "A linear branch chain resolves to one Pull request stack", failures: &failures)
+        check(stacks.count == 1, "GitHub Stack membership resolves one Pull request stack", failures: &failures)
         check(
             stacks.first?.pullRequests.map(\.number) == [2872, 2873, 2874],
-            "Pull request stack members are ordered from Stack root to top",
+            "GitHub Stack positions order members from Stack root to top",
+            failures: &failures
+        )
+        check(
+            stacks.first?.number == 350,
+            "GitHub Stack number is retained for navigation context",
+            failures: &failures
+        )
+        check(
+            stacks.first?.size == 3,
+            "GitHub Stack reports the authoritative member count",
+            failures: &failures
+        )
+        check(
+            stacks.first?.navigationURL == root.url,
+            "GitHub Stack navigation opens its root pull request",
             failures: &failures
         )
         check(
@@ -45,31 +64,29 @@ enum PullRequestStackChecks {
             "Section members retain Stack root-to-top order",
             failures: &failures
         )
-        let otherRepositoryChild = pullRequest(
-            id: "OTHER-1",
-            repositoryID: "REPO-2",
-            repositoryName: "example/other",
-            number: 1,
-            base: "skills-1",
-            head: "other-child",
-            updatedAt: 5
+
+        let partiallyHydratedStack = PullRequestStack(
+            id: "STACK-350",
+            number: 350,
+            size: 3,
+            pullRequests: [middle, top]
         )
         check(
-            PullRequestStackResolver.stacks(in: [root, otherRepositoryChild]).isEmpty,
-            "Matching branch names in different repositories do not create a Pull request stack",
+            partiallyHydratedStack.root == nil,
+            "A partially hydrated Stack does not relabel another member as the Stack root",
+            failures: &failures
+        )
+        check(
+            partiallyHydratedStack.navigationURL == middle.url,
+            "A partially hydrated Stack can navigate through an available member",
             failures: &failures
         )
 
-        let sibling = pullRequest(
-            id: "PR-2875",
-            number: 2875,
-            base: "skills-1",
-            head: "alternate-skills-2",
-            updatedAt: 6
-        )
+        let unstackedRoot = pullRequest(id: "UNSTACKED-1", number: 1, updatedAt: 4)
+        let unstackedChild = pullRequest(id: "UNSTACKED-2", number: 2, updatedAt: 5)
         check(
-            PullRequestStackResolver.stacks(in: [root, middle, sibling]).isEmpty,
-            "A branched dependency graph is not presented as a linear Pull request stack",
+            PullRequestStackResolver.stacks(in: [unstackedRoot, unstackedChild]).isEmpty,
+            "Pull requests without GitHub Stack membership remain unstacked",
             failures: &failures
         )
         return failures
@@ -80,21 +97,29 @@ enum PullRequestStackChecks {
         repositoryID: String = "REPO-1",
         repositoryName: String = "alaro-ai/alaro",
         number: Int,
-        base: String,
-        head: String,
+        stackID: String? = nil,
+        stackNumber: Int? = nil,
+        stackSize: Int? = nil,
+        stackPosition: Int? = nil,
         updatedAt: TimeInterval
     ) -> PullRequestPresentation {
         PullRequestPresentation(
             id: id,
             repositoryID: repositoryID,
             repositoryNameWithOwner: repositoryName,
-            baseRefName: base,
-            headRefName: head,
-            headRepositoryID: repositoryID,
             number: number,
             title: "PR \(number)",
             url: URL(string: "https://github.com/\(repositoryName)/pull/\(number)")!,
             isDraft: false,
+            stackMembership: stackID.flatMap { stackID in
+                guard let stackNumber, let stackSize, let stackPosition else { return nil }
+                return PullRequestStackMembership(
+                    id: stackID,
+                    number: stackNumber,
+                    size: stackSize,
+                    position: stackPosition
+                )
+            },
             updatedAt: Date(timeIntervalSince1970: updatedAt),
             reviewers: []
         )

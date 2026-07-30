@@ -82,12 +82,19 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         let allIDs = Array(reviewDiscoveryIDs.union(authoredDiscoveryIDs)).sorted()
 
         let hydrationOutput = await hydrateAll(ids: allIDs, account: account)
-        let hydratedRecords = hydrationOutput.value
+        var hydratedRecords = hydrationOutput.value
         metadata.merge(hydrationOutput.metadata)
 
         if !allIDs.isEmpty, hydratedRecords.isEmpty {
             return .failed(metadata.blockingFailure ?? .hydration, metadata.presentation)
         }
+
+        let stackMemberOutput = await hydrateMissingStackMembers(
+            referencedBy: hydratedRecords,
+            account: account
+        )
+        hydratedRecords.append(contentsOf: stackMemberOutput.value)
+        metadata.merge(stackMemberOutput.metadata)
 
         let monitoredReviewerKeys = Set(
             ["user:\(account.login.lowercased())"] + teams.map(\.reviewerKey)
@@ -96,6 +103,7 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         let recordsByID = Dictionary(uniqueKeysWithValues: hydratedRecords.map { ($0.id, $0) })
         let needsYourReview = reviewDiscoveryIDs.compactMap { id -> PullRequestPresentation? in
             guard let record = recordsByID[id],
+                  record.state == .open,
                   !record.isDraft,
                   !record.requestedReviewerKeys.isDisjoint(with: monitoredReviewerKeys) else {
                 return nil
@@ -109,6 +117,7 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
 
         let authoredPullRequests = authoredDiscoveryIDs.compactMap { id -> PullRequestPresentation? in
             guard let record = recordsByID[id],
+                  record.state == .open,
                   record.author.displayName.caseInsensitiveCompare(account.login) == .orderedSame else {
                 return nil
             }
@@ -127,7 +136,10 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
             completeness: completeness,
             availableRepositories: repositoryCatalog,
             needsYourReview: needsYourReview,
-            authoredPullRequests: authoredPullRequests
+            authoredPullRequests: authoredPullRequests,
+            pullRequestStacks: PullRequestStackResolver.stacks(
+                in: hydratedRecords.map(\.presentation)
+            )
         )
 
         if completeness == .complete {
@@ -386,6 +398,123 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         }
     }
 
+    private func hydrateMissingStackMembers(
+        referencedBy records: [HydratedRecord],
+        account: ResolvedAccount
+    ) async -> OperationOutput<[HydratedRecord]> {
+        let stackIDs = Array(Set(records.compactMap(\.stackMembership?.id))).sorted()
+        guard !stackIDs.isEmpty else {
+            return OperationOutput(value: [], metadata: MetadataAccumulator())
+        }
+
+        let discoveryOutput = await discoverStackMemberIDs(
+            stackIDs: stackIDs,
+            account: account
+        )
+        let hydratedIDs = Set(records.map(\.id))
+        let missingIDs = discoveryOutput.value.filter { !hydratedIDs.contains($0) }
+        let hydrationOutput = await hydrateAll(ids: missingIDs, account: account)
+        var metadata = discoveryOutput.metadata
+        metadata.merge(hydrationOutput.metadata)
+        let hydratedMissingIDs = Set(hydrationOutput.value.map(\.id))
+        if !Set(missingIDs).isSubset(of: hydratedMissingIDs) {
+            metadata.warnings.append("pull-request stack member hydration incomplete")
+        }
+        return OperationOutput(value: hydrationOutput.value, metadata: metadata)
+    }
+
+    private func discoverStackMemberIDs(
+        stackIDs: [String],
+        account: ResolvedAccount
+    ) async -> OperationOutput<[String]> {
+        let batches = stackIDs.chunked(into: hydrationBatchSize)
+        guard !batches.isEmpty else {
+            return OperationOutput(value: [], metadata: MetadataAccumulator())
+        }
+
+        return await withTaskGroup(of: StackDiscoveryBatchOutcome.self) { group in
+            var nextBatchIndex = 0
+            var idsByBatch: [Int: [String]] = [:]
+            var metadataByBatch: [Int: MetadataAccumulator] = [:]
+
+            func submitBatch(at index: Int) {
+                let batch = batches[index]
+                group.addTask {
+                    do {
+                        let page: Executed<HydratePullRequestStacksData> = try await execute(
+                            operationName: "HydratePullRequestStacks",
+                            query: Self.hydratePullRequestStacksQuery,
+                            variables: HydrateVariables(ids: batch),
+                            account: account
+                        )
+                        var batchMetadata = MetadataAccumulator()
+                        batchMetadata.record(
+                            rateLimit: page.data.rateLimit,
+                            hasErrors: page.hasErrors,
+                            warning: "pull-request stack discovery incomplete"
+                        )
+                        if page.data.nodes.compactMap({ $0 }).contains(where: {
+                            $0.entries.pageInfo.hasNextPage
+                        }) {
+                            batchMetadata.warnings.append(
+                                "pull-request stack exceeds the supported 100-member preview limit"
+                            )
+                        }
+                        let ids = page.data.nodes.compactMap { $0 }.flatMap {
+                            $0.entries.nodes.compactMap(\.pullRequest?.id)
+                        }
+                        return .success(
+                            index: index,
+                            ids: ids,
+                            metadata: batchMetadata
+                        )
+                    } catch {
+                        return .failure(
+                            index: index,
+                            error: CapturedOperationError(error)
+                        )
+                    }
+                }
+            }
+
+            while nextBatchIndex < min(hydrationConcurrency, batches.count) {
+                submitBatch(at: nextBatchIndex)
+                nextBatchIndex += 1
+            }
+
+            while let outcome = await group.next() {
+                switch outcome {
+                case let .success(index, ids, metadata):
+                    idsByBatch[index] = ids
+                    metadataByBatch[index] = metadata
+                case let .failure(index, error):
+                    var failedMetadata = MetadataAccumulator()
+                    failedMetadata.record(
+                        error: error,
+                        warning: "pull-request stack discovery incomplete"
+                    )
+                    metadataByBatch[index] = failedMetadata
+                }
+
+                if nextBatchIndex < batches.count {
+                    submitBatch(at: nextBatchIndex)
+                    nextBatchIndex += 1
+                }
+            }
+
+            var metadata = MetadataAccumulator()
+            for index in batches.indices {
+                if let batchMetadata = metadataByBatch[index] {
+                    metadata.merge(batchMetadata)
+                }
+            }
+            return OperationOutput(
+                value: Array(Set(batches.indices.flatMap { idsByBatch[$0] ?? [] })).sorted(),
+                metadata: metadata
+            )
+        }
+    }
+
     private func execute<Variables: Encodable & Sendable, Response: Decodable & Sendable>(
         operationName: String,
         query: String,
@@ -509,11 +638,10 @@ private extension GraphQLGitHubWorkloadClient {
           reviewDecision
           state
           updatedAt
-          baseRefName
-          headRefName
-          headRepository { id }
           author { login avatarUrl }
           repository { id nameWithOwner }
+          stack { id number size }
+          stackEntry { position }
           reviewRequests(first: 100) {
             nodes {
               requestedReviewer {
@@ -531,6 +659,23 @@ private extension GraphQLGitHubWorkloadClient {
             nodes {
               state
               author { login avatarUrl }
+            }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      }
+      rateLimit { cost remaining resetAt }
+    }
+    """#
+
+    static let hydratePullRequestStacksQuery = #"""
+    query HydratePullRequestStacks($ids: [ID!]!) {
+      nodes(ids: $ids) {
+        ... on PullRequestStack {
+          id
+          entries(first: 100) {
+            nodes {
+              pullRequest { id }
             }
             pageInfo { hasNextPage endCursor }
           }
@@ -680,6 +825,11 @@ private enum HydrationBatchOutcome: Sendable {
     case failure(index: Int, error: CapturedOperationError)
 }
 
+private enum StackDiscoveryBatchOutcome: Sendable {
+    case success(index: Int, ids: [String], metadata: MetadataAccumulator)
+    case failure(index: Int, error: CapturedOperationError)
+}
+
 private struct CursorVariables: Encodable, Sendable {
     let cursor: String?
 }
@@ -790,6 +940,29 @@ private struct HydratePullRequestsData: Decodable, Sendable {
     let rateLimit: RateLimitDTO
 }
 
+private struct HydratePullRequestStacksData: Decodable, Sendable {
+    let nodes: [PullRequestStackDTO?]
+    let rateLimit: RateLimitDTO
+}
+
+private struct PullRequestStackDTO: Decodable, Sendable {
+    let id: String
+    let entries: PullRequestStackEntryConnectionDTO
+}
+
+private struct PullRequestStackEntryConnectionDTO: Decodable, Sendable {
+    let nodes: [PullRequestStackEntryDTO]
+    let pageInfo: PageInfoDTO
+}
+
+private struct PullRequestStackEntryDTO: Decodable, Sendable {
+    let pullRequest: PullRequestNodeDTO?
+}
+
+private struct PullRequestNodeDTO: Decodable, Sendable {
+    let id: String
+}
+
 private struct PullRequestRosterPageData: Decodable, Sendable {
     let node: PullRequestRosterPageDTO?
     let rateLimit: RateLimitDTO
@@ -809,17 +982,22 @@ private struct PullRequestDTO: Decodable, Sendable {
     let reviewDecision: String?
     let state: String
     let updatedAt: String
-    let baseRefName: String?
-    let headRefName: String?
-    let headRepository: RepositoryIdentityDTO?
     let author: ActorDTO?
     let repository: RepositoryDTO
+    let stack: PullRequestStackIdentityDTO?
+    let stackEntry: PullRequestStackEntryIdentityDTO?
     let reviewRequests: ReviewRequestConnectionDTO
     let reviews: ReviewConnectionDTO
 }
 
-private struct RepositoryIdentityDTO: Decodable, Sendable {
+private struct PullRequestStackIdentityDTO: Decodable, Sendable {
     let id: String
+    let number: Int
+    let size: Int
+}
+
+private struct PullRequestStackEntryIdentityDTO: Decodable, Sendable {
+    let position: Int
 }
 
 private struct RepositoryDTO: Decodable, Sendable {
@@ -905,12 +1083,11 @@ private struct HydratedRecord: Sendable {
     let id: String
     let repositoryID: String
     let repositoryNameWithOwner: String
-    let baseRefName: String?
-    let headRefName: String?
-    let headRepositoryID: String?
     let author: PullRequestAuthorPresentation
     let isDraft: Bool
+    let state: PullRequestState
     let reviewDecision: PullRequestReviewDecision?
+    let stackMembership: PullRequestStackMembership?
     let number: Int
     let title: String
     let url: URL
@@ -921,7 +1098,7 @@ private struct HydratedRecord: Sendable {
     var reviewsPageInfo: PageInfoDTO
 
     init?(_ dto: PullRequestDTO) {
-        guard dto.state == "OPEN",
+        guard let state = PullRequestState(rawValue: dto.state),
               let url = URL(string: dto.url),
               let updatedAt = parseGitHubDate(dto.updatedAt),
               let author = dto.author else {
@@ -931,12 +1108,20 @@ private struct HydratedRecord: Sendable {
         id = dto.id
         repositoryID = dto.repository.id
         repositoryNameWithOwner = dto.repository.nameWithOwner
-        baseRefName = dto.baseRefName
-        headRefName = dto.headRefName
-        headRepositoryID = dto.headRepository?.id
         self.author = author.pullRequestAuthorPresentation
         isDraft = dto.isDraft
+        self.state = state
         reviewDecision = dto.reviewDecision.flatMap(PullRequestReviewDecision.init(rawValue:))
+        if let stack = dto.stack, let stackEntry = dto.stackEntry {
+            stackMembership = PullRequestStackMembership(
+                id: stack.id,
+                number: stack.number,
+                size: stack.size,
+                position: stackEntry.position
+            )
+        } else {
+            stackMembership = nil
+        }
         number = dto.number
         title = dto.title
         self.url = url
@@ -970,15 +1155,14 @@ private struct HydratedRecord: Sendable {
             id: id,
             repositoryID: repositoryID,
             repositoryNameWithOwner: repositoryNameWithOwner,
-            baseRefName: baseRefName,
-            headRefName: headRefName,
-            headRepositoryID: headRepositoryID,
             number: number,
             title: title,
             url: url,
             isDraft: isDraft,
+            state: state,
             author: author,
             reviewDecision: reviewDecision,
+            stackMembership: stackMembership,
             updatedAt: updatedAt,
             requestedReviewers: requestedReviewerPresentations,
             reviewers: reviewerOrder.compactMap { reviewersByID[$0] }

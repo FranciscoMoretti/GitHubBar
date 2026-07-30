@@ -84,6 +84,24 @@ enum RepositoryScopeChecks {
             authoredPullRequests: [
                 pullRequest(id: "AUTHORED-1", repositoryID: "REPO-1"),
                 pullRequest(id: "AUTHORED-2", repositoryID: "REPO-2"),
+            ],
+            pullRequestStacks: [
+                PullRequestStack(
+                    id: "STACK-1",
+                    number: 1,
+                    pullRequests: [
+                        pullRequest(id: "STACK-1-ROOT", repositoryID: "REPO-1"),
+                        pullRequest(id: "STACK-1-TOP", repositoryID: "REPO-1"),
+                    ]
+                ),
+                PullRequestStack(
+                    id: "STACK-2",
+                    number: 2,
+                    pullRequests: [
+                        pullRequest(id: "STACK-2-ROOT", repositoryID: "REPO-2"),
+                        pullRequest(id: "STACK-2-TOP", repositoryID: "REPO-2"),
+                    ]
+                ),
             ]
         )
         let settingsStore = InMemorySettingsStore(
@@ -141,6 +159,11 @@ enum RepositoryScopeChecks {
             failures: &failures
         )
         check(
+            projectedState?.pullRequestStacks.map(\.id) == ["STACK-1"],
+            "A Repository scope change keeps only in-scope Pull request stacks",
+            failures: &failures
+        )
+        check(
             projectedState?.isRefreshing == false,
             "A Repository scope change does not enter a refreshing state",
             failures: &failures
@@ -148,6 +171,11 @@ enum RepositoryScopeChecks {
         check(
             allRepositoriesState?.authoredPullRequests.map(\.repositoryID) == ["REPO-1", "REPO-2"],
             "Returning to all repositories restores the preserved account workload",
+            failures: &failures
+        )
+        check(
+            allRepositoriesState?.pullRequestStacks.map(\.id) == ["STACK-1", "STACK-2"],
+            "Returning to all repositories restores Pull request stack navigation context",
             failures: &failures
         )
         check(

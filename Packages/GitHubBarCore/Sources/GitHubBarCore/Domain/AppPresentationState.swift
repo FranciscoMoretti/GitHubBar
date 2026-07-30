@@ -8,6 +8,7 @@ public struct AppPresentationState: Codable, Equatable, Sendable {
     public var availableRepositories: [RepositoryChoice]
     public var needsYourReview: [PullRequestPresentation]
     public var authoredPullRequests: [PullRequestPresentation]
+    public var pullRequestStacks: [PullRequestStack]
     public var lastUpdatedAt: Date?
     public var isRefreshing: Bool
     public var refreshCadence: RefreshCadence
@@ -17,7 +18,7 @@ public struct AppPresentationState: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case accountConnection, refreshHealth, repositoryScope, pinnedRepositories, availableRepositories
         case needsYourReview = "waitingForReview"
-        case authoredPullRequests, lastUpdatedAt, isRefreshing, refreshCadence
+        case authoredPullRequests, pullRequestStacks, lastUpdatedAt, isRefreshing, refreshCadence
         case launchAtLoginRequested, launchAtLoginStatus
     }
 
@@ -29,6 +30,7 @@ public struct AppPresentationState: Codable, Equatable, Sendable {
         availableRepositories: [RepositoryChoice],
         needsYourReview: [PullRequestPresentation],
         authoredPullRequests: [PullRequestPresentation],
+        pullRequestStacks: [PullRequestStack] = [],
         lastUpdatedAt: Date?,
         isRefreshing: Bool,
         refreshCadence: RefreshCadence,
@@ -42,6 +44,7 @@ public struct AppPresentationState: Codable, Equatable, Sendable {
         self.availableRepositories = availableRepositories
         self.needsYourReview = needsYourReview
         self.authoredPullRequests = authoredPullRequests
+        self.pullRequestStacks = pullRequestStacks
         self.lastUpdatedAt = lastUpdatedAt
         self.isRefreshing = isRefreshing
         self.refreshCadence = refreshCadence
@@ -57,6 +60,7 @@ public struct AppPresentationState: Codable, Equatable, Sendable {
         availableRepositories: [],
         needsYourReview: [],
         authoredPullRequests: [],
+        pullRequestStacks: [],
         lastUpdatedAt: nil,
         isRefreshing: false,
         refreshCadence: .fiveMinutes,

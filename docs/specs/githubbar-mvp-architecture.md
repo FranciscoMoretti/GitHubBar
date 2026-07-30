@@ -94,7 +94,7 @@ The production adapter invokes GitHub CLI through an injected command runner; te
 One reconciliation operation accepts the resolved account, Repository scope, and previous Snapshot, and returns a typed complete, partial, or failed result. The production GraphQL implementation hides:
 
 - authored, direct-request, and team-request discovery;
-- deduplication and search sharding;
+- deduplication, search sharding, and native Pull request stack hydration;
 - pagination and bounded hydration concurrency;
 - review-roster construction and pagination;
 - GraphQL cost inspection, retry, rate-limit, and partial-error handling;
