@@ -84,9 +84,7 @@ enum ReconciliationChecks {
         ])
         let engine = makeEngine(client: client, clock: clock)
         await engine.send(.launch)
-        for _ in 0..<20 where await client.requestCount < 3 {
-            await Task.yield()
-        }
+        await waitForRequestCount(3, client: client)
         let state = await latestState(from: engine)
 
         var failures: [String] = []
@@ -113,7 +111,7 @@ enum ReconciliationChecks {
         ])
         let engine = makeEngine(client: client, clock: clock)
         await engine.send(.launch)
-        for _ in 0..<20 where await client.requestCount < 2 { await Task.yield() }
+        await waitForRequestCount(2, client: client)
         let state = await latestState(from: engine)
 
         var failures: [String] = []
@@ -285,6 +283,16 @@ enum ReconciliationChecks {
     private static func waitForSleepCount(_ count: Int, clock: RecordingSuspendingRefreshClock) async {
         for _ in 0..<50 {
             if await clock.durations.count >= count { return }
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+    }
+
+    private static func waitForRequestCount(
+        _ count: Int,
+        client: ScriptedWorkloadClient
+    ) async {
+        for _ in 0..<200 {
+            if await client.requestCount >= count { return }
             try? await Task.sleep(for: .milliseconds(1))
         }
     }
