@@ -17,9 +17,10 @@ enum StatusIconRenderer {
 
     static func image(reviewCount: Int) -> NSImage {
         let image = NSImage(size: iconSize, flipped: false) { bounds in
-            drawGitHubMark(in: bounds)
-            if let countText = ReviewCountDisplay.text(for: reviewCount) {
-                drawCarvedCount(text: countText, in: bounds)
+            let countText = ReviewCountDisplay.text(for: reviewCount)
+            drawGitHubMark(in: bounds, badged: countText != nil)
+            if let countText {
+                drawBadge(text: countText, in: bounds)
             }
             return true
         }
@@ -28,9 +29,13 @@ enum StatusIconRenderer {
         return image
     }
 
-    private static func drawGitHubMark(in bounds: NSRect) {
+    private static func drawGitHubMark(in bounds: NSRect, badged: Bool) {
+        // Shrink toward the bottom-left so the badge has a corner to sit in.
+        let rect = badged
+            ? NSRect(x: bounds.minX, y: bounds.minY, width: 14, height: 14)
+            : bounds.insetBy(dx: 1, dy: 1)
         githubMark.draw(
-            in: bounds.insetBy(dx: 1, dy: 1),
+            in: rect,
             from: .zero,
             operation: .sourceOver,
             fraction: 1,
@@ -39,41 +44,51 @@ enum StatusIconRenderer {
         )
     }
 
-    private static func drawCarvedCount(text: String, in bounds: NSRect) {
-        let fontSize: CGFloat = text.count == 1 ? 8.9 : 8
+    /// Filled badge with the count knocked out of it. Template rendering paints
+    /// the badge in the menu bar's tint and leaves the digits transparent.
+    private static func drawBadge(text: String, in bounds: NSRect) {
+        let fontSize: CGFloat = text.count == 1 ? 8 : 7
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .heavy),
+            .font: NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .black),
             .foregroundColor: NSColor.black,
         ]
         let string = NSAttributedString(string: text, attributes: attributes)
-        let size = string.size()
-        let origin = NSPoint(
-            x: bounds.maxX - size.width - 0.15,
-            y: -0.15
-        )
+        let textSize = string.size()
 
-        let carveOrigin = NSPoint(
-            x: origin.x - 1.35,
-            y: bounds.minY - 3.5
-        )
-        let carveTop: CGFloat = 9.2
-        let carveRect = NSRect(
-            x: carveOrigin.x,
-            y: carveOrigin.y,
-            width: bounds.maxX + 3.5 - carveOrigin.x,
-            height: carveTop - carveOrigin.y
+        let height: CGFloat = 10
+        let width = max(height, textSize.width + 5)
+        let badge = NSRect(
+            x: bounds.maxX - width,
+            y: bounds.maxY - height,
+            width: width,
+            height: height
         )
 
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current?.compositingOperation = .clear
         NSColor.black.setFill()
         NSBezierPath(
-            roundedRect: carveRect,
-            xRadius: 2.6,
-            yRadius: 2.6
+            roundedRect: badge.insetBy(dx: -1.1, dy: -1.1),
+            xRadius: height,
+            yRadius: height
         ).fill()
         NSGraphicsContext.restoreGraphicsState()
 
-        string.draw(at: origin)
+        NSColor.black.setFill()
+        NSBezierPath(
+            roundedRect: badge,
+            xRadius: height / 2,
+            yRadius: height / 2
+        ).fill()
+
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current?.compositingOperation = .clear
+        string.draw(
+            at: NSPoint(
+                x: badge.midX - textSize.width / 2,
+                y: badge.midY - textSize.height / 2
+            )
+        )
+        NSGraphicsContext.restoreGraphicsState()
     }
 }
