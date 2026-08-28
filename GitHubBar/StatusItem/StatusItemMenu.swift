@@ -207,7 +207,7 @@ extension StatusItemController: NSMenuDelegate {
         .frame(width: Self.menuWidth, height: 38)
         let hosting = NSHostingView(rootView: view)
         hosting.frame = NSRect(x: 0, y: 0, width: Self.menuWidth, height: 38)
-        item.view = hosting
+        item.view = hosting.adoptingMenuAppearance()
         item.isEnabled = true
         return item
     }
@@ -270,7 +270,7 @@ extension StatusItemController: NSMenuDelegate {
                 stackMemberSection: stackMemberSection
             )
         )
-        item.view = hosting
+        item.view = hosting.adoptingMenuAppearance()
         item.isEnabled = true
         item.toolTip = pullRequestTooltip(for: pullRequest, stack: stackRowContext?.stack)
         if let stackRowContext {
@@ -431,7 +431,7 @@ extension StatusItemController: NSMenuDelegate {
             keyEquivalent: ""
         )
         item.target = self
-        item.view = hosting
+        item.view = hosting.adoptingMenuAppearance()
         return item
     }
 
@@ -449,7 +449,7 @@ extension StatusItemController: NSMenuDelegate {
             width: Self.menuWidth,
             height: Self.pullRequestRowHeight
         )
-        item.view = hosting
+        item.view = hosting.adoptingMenuAppearance()
         item.isEnabled = false
         item.setAccessibilityLabel("Shortcut to open GitHubBar, \(shortcut.displayString)")
         return item
@@ -825,6 +825,17 @@ private final class StatusMenuURLTarget: NSObject {
 @MainActor
 private protocol StatusMenuHighlighting: AnyObject {
     func setHighlighted(_ highlighted: Bool)
+}
+
+private extension NSView {
+    /// Menu item views inherit the status bar window's appearance, which is dark
+    /// whenever the menu bar is dark. The menu draws light, so rows end up with
+    /// light label colors on a light background.
+    @MainActor
+    func adoptingMenuAppearance() -> Self {
+        appearance = NSApp.effectiveAppearance
+        return self
+    }
 }
 
 @MainActor
