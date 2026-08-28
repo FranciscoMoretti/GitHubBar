@@ -77,7 +77,7 @@ struct PopoverView: View {
         .frame(minHeight: 470, idealHeight: Self.fallbackHeight, maxHeight: Self.maximumHeight)
         .background(VisualEffectBackground())
         .environmentObject(avatarImageCache)
-        .environment(\.colorScheme, .dark)
+        .environment(\.colorScheme, .systemAppearance)
     }
 
     private var header: some View {

@@ -962,7 +962,7 @@ private struct StatusMenuPullRequestRow: View {
             }
         }
         .contentShape(Rectangle())
-        .environment(\.colorScheme, .dark)
+        .environment(\.colorScheme, .systemAppearance)
     }
 }
 
@@ -996,7 +996,7 @@ private struct StatusMenuActionRow: View {
             }
         }
         .contentShape(Rectangle())
-        .environment(\.colorScheme, .dark)
+        .environment(\.colorScheme, .systemAppearance)
     }
 }
 
@@ -1013,7 +1013,7 @@ private struct StatusMenuShortcutHintRow: View {
         .font(.system(size: 11))
         .foregroundStyle(.tertiary)
         .padding(.horizontal, 18)
-        .environment(\.colorScheme, .dark)
+        .environment(\.colorScheme, .systemAppearance)
     }
 }
 
@@ -1059,7 +1059,7 @@ private struct StatusMenuRepositoryFilter: View {
             .help("Manage pinned repositories in Settings")
         }
         .padding(.horizontal, 11)
-        .environment(\.colorScheme, .dark)
+        .environment(\.colorScheme, .systemAppearance)
     }
 
     private func filterButton(_ title: String, filter: RepositoryScope) -> some View {
