@@ -454,9 +454,14 @@ public actor WorkloadEngine {
     private func applyPresentation(from snapshot: WorkloadSnapshot) {
         let scope = state.repositoryScope
         let pinnedRepositoryIDs = state.pinnedRepositoryIDs
+        let authoredIDs = Set(snapshot.authoredPullRequests.map(\.id))
         state.availableRepositories = snapshot.availableRepositories
         state.needsYourReview = snapshot.needsYourReview.filter { pullRequest in
-            scope.includes(
+            guard !authoredIDs.contains(pullRequest.id),
+                  pullRequest.author?.displayName.caseInsensitiveCompare(snapshot.accountLogin) != .orderedSame else {
+                return false
+            }
+            return scope.includes(
                 repositoryID: pullRequest.repositoryID,
                 pinnedRepositoryIDs: pinnedRepositoryIDs
             )

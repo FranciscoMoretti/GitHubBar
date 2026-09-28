@@ -81,6 +81,20 @@ final class WorkloadEngineTests: XCTestCase {
         XCTAssertEqual(await workloadClient.requestCount, 1)
     }
 
+    func testAuthoredPullRequestIsNotShownAsNeedingOwnReview() async throws {
+        let engine = WorkloadEngine(
+            accountConnection: ConnectedTestAccountConnection(),
+            workloadClient: OverlappingWorkloadClient()
+        )
+
+        await engine.send(.launch)
+        let state = try await currentState(of: engine)
+
+        XCTAssertTrue(state.needsYourReview.isEmpty)
+        XCTAssertEqual(state.reviewCount, 0)
+        XCTAssertEqual(state.authoredPullRequests.map(\.number), [1])
+    }
+
     func testConfirmingMonitoredAccountPersistsOnlyItsLogin() async throws {
         let settingsStore = InMemorySettingsStore()
         let engine = WorkloadEngine(
@@ -190,6 +204,39 @@ private actor ScopeFilteringWorkloadClient: GitHubWorkloadClient {
             isDraft: false,
             updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
             reviewers: []
+        )
+    }
+}
+
+private actor OverlappingWorkloadClient: GitHubWorkloadClient {
+    func reconcile(account: ResolvedAccount) async -> WorkloadReconciliationResult {
+        let pullRequest = PullRequestPresentation(
+            id: "PR-OWN",
+            repositoryID: "REPO-A",
+            repositoryNameWithOwner: "owner/repo",
+            number: 1,
+            title: "An authored pull request",
+            url: URL(string: "https://github.com/owner/repo/pull/1")!,
+            isDraft: false,
+            author: PullRequestAuthorPresentation(
+                id: "user:franciscomoretti",
+                displayName: account.login,
+                avatarURL: nil
+            ),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            reviewers: []
+        )
+        return .complete(
+            WorkloadSnapshot(
+                hostname: account.hostname,
+                accountLogin: account.login,
+                capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                completeness: .complete,
+                availableRepositories: [RepositoryChoice(id: "REPO-A", nameWithOwner: "owner/repo")],
+                needsYourReview: [pullRequest],
+                authoredPullRequests: [pullRequest]
+            ),
+            .empty
         )
     }
 }

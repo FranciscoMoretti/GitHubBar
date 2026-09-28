@@ -105,6 +105,7 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
             guard let record = recordsByID[id],
                   record.state == .open,
                   !record.isDraft,
+                  record.author.displayName.caseInsensitiveCompare(account.login) != .orderedSame,
                   !record.requestedReviewerKeys.isDisjoint(with: monitoredReviewerKeys) else {
                 return nil
             }
