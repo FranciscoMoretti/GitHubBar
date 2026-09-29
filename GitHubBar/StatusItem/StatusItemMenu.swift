@@ -235,12 +235,15 @@ extension StatusItemController: NSMenuDelegate {
         .environmentObject(avatarImageCache)
         .padding(.horizontal, 11)
         .frame(width: width, height: Self.pullRequestRowHeight)
-        let onClick: (() -> Void)? = stackRowContext == nil ? { [weak self] in
+        let onClick: ((NSEvent.ModifierFlags) -> Void)? = stackRowContext == nil ? { [weak self] modifiers in
             self?.open(
                 pullRequest.url,
-                keepsMenuOpen: keepsMenuOpenAfterOpening
+                keepsMenuOpen: keepsMenuOpenAfterOpening || modifiers.contains(.command)
             )
         } : nil
+        let onCommandClick: (() -> Void)? = stackRowContext == nil ? nil : { [weak self] in
+            self?.open(pullRequest.url, keepsMenuOpen: true)
+        }
         let hosting = StatusMenuRowHostingView(
             rootView: row,
             highlightState: highlightState,
@@ -249,6 +252,7 @@ extension StatusItemController: NSMenuDelegate {
                 stackRowContext: stackRowContext,
                 stackMemberSection: stackMemberSection
             ),
+            onCommandClick: onCommandClick,
             onClick: onClick
         )
         hosting.frame = NSRect(
@@ -413,7 +417,7 @@ extension StatusItemController: NSMenuDelegate {
             accessibilityLabel: action.shortcut.map {
                 "\(action.title), \($0.displayString)"
             } ?? action.title
-        ) { [weak self] in
+        ) { [weak self] _ in
             guard let self else { return }
             self.statusMenu.cancelTracking()
             NSApp.sendAction(action.selector, to: self, from: nil)
@@ -586,10 +590,11 @@ extension StatusItemController: NSMenuDelegate {
     }
 
     @objc private func openURL(_ sender: NSMenuItem) {
+        let commandClick = NSApp.currentEvent?.modifierFlags.contains(.command) ?? false
         if let target = sender.representedObject as? StatusMenuURLTarget {
-            open(target.url, keepsMenuOpen: target.keepsMenuOpen)
+            open(target.url, keepsMenuOpen: target.keepsMenuOpen || commandClick)
         } else if let url = sender.representedObject as? URL {
-            open(url)
+            open(url, keepsMenuOpen: commandClick)
         }
     }
 
@@ -836,16 +841,19 @@ private final class StatusMenuHighlightState: ObservableObject {
 private final class StatusMenuRowHostingView<Content: View>: NSHostingView<Content>, StatusMenuHighlighting {
     private let highlightState: StatusMenuHighlightState
     private let rowAccessibilityLabel: String
-    private let onClick: (() -> Void)?
+    private let onCommandClick: (() -> Void)?
+    private let onClick: ((NSEvent.ModifierFlags) -> Void)?
 
     init(
         rootView: Content,
         highlightState: StatusMenuHighlightState,
         accessibilityLabel: String,
-        onClick: (() -> Void)?
+        onCommandClick: (() -> Void)? = nil,
+        onClick: ((NSEvent.ModifierFlags) -> Void)?
     ) {
         self.highlightState = highlightState
         rowAccessibilityLabel = accessibilityLabel
+        self.onCommandClick = onCommandClick
         self.onClick = onClick
         super.init(rootView: rootView)
     }
@@ -853,6 +861,7 @@ private final class StatusMenuRowHostingView<Content: View>: NSHostingView<Conte
     required init(rootView: Content) {
         highlightState = StatusMenuHighlightState()
         rowAccessibilityLabel = "Pull request"
+        onCommandClick = nil
         onClick = nil
         super.init(rootView: rootView)
     }
@@ -871,11 +880,19 @@ private final class StatusMenuRowHostingView<Content: View>: NSHostingView<Conte
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard event.type == .leftMouseUp, let onClick else {
+        guard event.type == .leftMouseUp else {
             super.mouseUp(with: event)
             return
         }
-        onClick()
+        if event.modifierFlags.contains(.command), let onCommandClick {
+            onCommandClick()
+            return
+        }
+        guard let onClick else {
+            super.mouseUp(with: event)
+            return
+        }
+        onClick(event.modifierFlags)
     }
 
     override func accessibilityRole() -> NSAccessibility.Role? {
@@ -892,7 +909,7 @@ private final class StatusMenuRowHostingView<Content: View>: NSHostingView<Conte
 
     override func accessibilityPerformPress() -> Bool {
         guard let onClick else { return false }
-        onClick()
+        onClick([])
         return true
     }
 
